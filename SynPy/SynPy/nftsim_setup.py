@@ -6,10 +6,14 @@ def nftsim_setup():
         if create_nftsim == 'y':
             os.system('git clone git@github.com:BrainDynamicsUSYD/nftsim.git')
             os.chdir('nftsim/')
-
-            gcc_load_string = "module load gcc/9.4.0 &&" # Assumes being ran from computer cluster with loadable modules (ie. SciNet Niagara)
-            os.system(f'{gcc_load_string} make')
+            try: # Assumes being ran from computer cluster with loadable modules (ie. SciNet Niagara)
+                gcc_version = '9.4.0'
+                os.system(f"module load gcc/{gcc_version} && make")
+            else: # Otherwise, try 
+                os.system('make')
+                
             os.chdir('../')
+        
         elif create_nftsim == 'n':
             pass
         else:
