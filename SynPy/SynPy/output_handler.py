@@ -34,6 +34,21 @@ class dot_output:
         self.sampling_rate = 1 / float(param_value('Interval', self.params)) # Number of written datapoints per second of simulation
         self.write_start = float(param_value('Start', self.params)) # Time in simulation when data begins being written
         
+        tms_param_dict = { # .conf keyword : class variable name
+        'Onset': 'stim_onset', # Time in the stimulation when TMS begins (s)
+        'Duration': 'stim_duration', # Total length of stimulation (s)
+        'Amplitude': 'stim_amplitude', # Stimulation amplitude of TMS pulses
+        'Bursts': 'stim_pulses_per_burst', # Number of TBS pulses per burst
+        'Burst Frequency': 'stim_intra_burst_freq', # Frequency of pulses within a burst
+        'Oscillation Frequency': 'stim_inter_burst_freq' # Frequency of bursts per second
+        }
+
+        for tms_param in tms_param_dict.keys(): # If the file has TMS in it, assign its parameters as attributes to the class
+            try:
+                setattr(self, tms_param_dict[tms_param], float(param_value(tms_param, self.params)))
+            except ValueError:
+                pass
+        
     def _output_params(self):
         """
         Parses and returns the initial parameter segment of the output_path file.
@@ -51,7 +66,7 @@ class dot_output:
         """
         Given the output_path file, constructs a dataframe object with each column representing a field and an index of time.
         """
-        Res = NF(nf_output_file = self.output_path) # NFTsim .output data object
+        Res = NF(nf_output_file = self.output_path) # NFTsim .output class object
 
         field_dict = {}
         for field in Res.fields: # for each field key
@@ -74,7 +89,7 @@ class dot_output:
             alpha = float(param_value('alpha|Dendrite 1', self.params)) # rise rate of post-synaptic potential
             beta = float(param_value('beta|Dendrite 1', self.params)) # decay rate of post-synaptic potential
             Q_max = float(param_value('Qmax|Firing', self.params)) # population firing rate
-            sigmoid_theta = float(param_value('Theta|Firing', self.params)) # mean population firing threshold, relative to rest
+            sigmoid_theta = float(param_value('Sigmoid Theta|Firing', self.params)) # mean population firing threshold, relative to rest
             sigma = float(param_value('Sigma|Firing', self.params)) # standard deviation of soma voltage, relative to threshold
 
             gain_dict = {}

@@ -55,36 +55,46 @@ def param_value(kw, conf_txt, _include_idxs_ = False):
     
     
     keyword = keyword.strip(':'); keyword_filter = keyword_filter.strip(':') # remove ';' from passed keyword strings
-    kw_instances = keyword_instances(keyword, conf_txt)
+    
+    # Dict of all keyword instances (line num : line content), filtered by instances not containing the keyword_filter
+    kw_instances = {num: content for num, content in keyword_instances(keyword, conf_txt).items() 
+                    if re.search(keyword_filter + "(:.+)", content, re.IGNORECASE)}
     
     if not kw_instances: # If there are no instances of the keyword in the conf_txt, return None
         return None
-    elif len(kw_instances) > 1 and keyword_filter == '':
-        for l, c in kw_instances.items():
+    
+    elif len(kw_instances) == 1: # If there is one instance, grab the line it's contained on
+        line_num = int([k for k in kw_instances.keys()][0])
+    
+    elif len(kw_instances) > 1 and len(set(kw_instances.values())) == 1: # if there a multiple, equal instances of the keyword
+        line_num = int(list(kw_instances.keys())[0]) # simply use the first instance
+    
+    else: # otherwise, request a line to select from the user
+        for l, c in kw_instances.items(): # print each instance the keyword, then ask user to select the containing line
             print(f'{l, c}\n')
-        keyword_filter = input(f'{len(kw_instances)} instances of {keyword} and no filter keyword passed.  Enter keyword filter: ')
+        line_num = int(input(f'{len(kw_instances)} instances of {keyword} after filtering. Select line number: '))
+
+    # adds a space after ':' in any instances there is none, removes newline tag, and splits the conf_txt on spaces
+    split_loi = re.sub(r'(?<=:)(?! )', ' ', conf_txt[line_num]).strip('\n').split(" ")
     
     
-    for line_idx, line_contents, in kw_instances.items(): # if the kw_filter is not also in the line, iterate to the next line
-        if keyword_filter != '' and not re.search(keyword_filter + "(:.+)", line_contents, re.IGNORECASE):
-            continue
+    for value_idx, value in enumerate(split_loi):
+        kw = keyword.split(' ')
+        if len(kw) == 1 and re.match(keyword, value, re.IGNORECASE) or len(kw) == 2 and value_idx > 0 and \
+            re.match(kw[0], split_loi[value_idx - 1], re.IGNORECASE) and \
+            re.match(kw[1], value, re.IGNORECASE):
+            
+            for vplus_idx, vplus in enumerate(split_loi[value_idx:]):
+                try:
+                    float(vplus) # try converting the value at index vplus_idx after the index of the found kw to a float
+                    if _include_idxs_:
+                        return line_idx, value_idx + vplus_idx, vplus # split loi index and value of corresponding kw
+                    else:
+                        return vplus # by default, only return the corresponding keyword (parameter) value
+                except:
+                    continue # otherwise, jump to the next object in the split loi
 
-        # adds a space after ':' in any instances there is none, removes newline tag, and splits the conf_txt on spaces
-        split_loi = re.sub(r'(?<=:)(?! )', ' ', conf_txt[line_idx]).strip('\n').split(" ")
-
-        for value_idx, value in enumerate(split_loi): # Iterate through the line objects until the keyword object is found
-            if re.match(keyword, value, re.IGNORECASE):
-                for vplus_idx, vplus in enumerate(split_loi[value_idx:]):
-                    try:
-                        float(vplus) # try converting the value at index vplus_idx after the index of the found kw to a float
-                        if _include_idxs_:
-                            return line_idx, value_idx + vplus_idx, vplus # split loi index and value of corresponding kw
-                        else:
-                            return vplus # by default, only return the corresponding keyword (parameter) value
-                    except:
-                        continue # otherwise, jump to the next object in the split loi
-
-    return None # If all lines and strings have been iterated through without kw-kw_filter matches, return None        
+    return None # otherwise, jump to the next object in the split loi
 
 
 def _replace_value_(kw, new_value, conf_txt):
@@ -119,7 +129,7 @@ def update_param(keyword, new_value, conf_txt):
     _replace_value_(keyword, new_value, conf_txt)
 
 
-def save_confs(new_confs, conf_dir = os.path.join(os.getcwd(), 'confs/')):
+def save_confs(new_confs, conf_dir = 'confs/'):
     """
     Takes a dictionary object containing a conf_string [key] and conf_content / conf_txt [value]
     
@@ -454,7 +464,7 @@ def AUC_power_delta(pre_signal,
 
         freq_range = [bins.min(), bins.max()]
 
-        fm = FOOOF()
+        fm = FOOOF(aperiodic_mode='knee', verbose = False)
 
         fm.fit(bins, pre_spectrum, freq_range)
         pre_fooof = fm.get_params('peak_params')

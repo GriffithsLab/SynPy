@@ -8,7 +8,9 @@ def nftsim_setup():
             os.chdir('nftsim/')
             try: # Assumes being ran from computer cluster with loadable modules (ie. SciNet Niagara)
                 gcc_version = '9.4.0'
-                os.system(f"module load gcc/{gcc_version} && make")
+                os.system(f"module load gcc/{gcc_version} && make")    
+            except Exception as e:
+                print(e)
             else: # Otherwise, try 
                 os.system('make')
                 
