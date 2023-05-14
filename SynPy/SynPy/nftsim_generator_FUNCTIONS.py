@@ -1,12 +1,15 @@
 # Data & directory navigation
-import os,time,sys,glob,numpy as np,pandas as pd
+import os
+import time
+import sys
+import glob
+import numpy as np
+import pandas as pd
 import re
 import subprocess
 from tqdm import tqdm # gives progress status of for loop processing
 from IPython import get_ipython
 
-import statistics
-import math
 from itertools import product
 from scipy.signal import welch
 from utils.nftsim import NF
@@ -14,12 +17,27 @@ from fooof import FOOOF
 
 # Visualization
 from matplotlib import pyplot as plt
-from matplotlib import cm
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.patches import Patch
 import seaborn as sns
 
 # sys.path.append('nftsim/')
+
+def nftsim_run(nftsim_path, conf_path, output_path, load_gcc = False):
+    nftsim_shell_code = f'{nftsim_path} -i {conf_path} -o {output_path}'
+    if load_gcc: # scinet, SCC need to load gcc each time a new shell is created and ran, especially when ran from jupyter notebook
+        nftsim_shell_code = 'module load gcc/9.4.0 && ' + nftsim_shell_code # append 'module load gcc' to shell command 
+
+    subprocess.run(nftsim_shell_code, shell=True, capture_output = True)
+
+
+def tbs_pulse_time(num_pulses, pulses_per_burst = 3, inter_burst_freq = 5, on_time = 2, off_time = 8, floor = False):
+    """
+    Calculate the amount of time in seconds to administer num_pulses for theta burst stimulation.  
+    
+    Defaults to iTBS.  Set off_time = 0 for cTBS
+    """
+    
+    # use floor division of train length if 'floor' passed
+    return eval(f'num_pulses / ((pulses_per_burst*inter_burst_freq*on_time) {"//" if floor else "/"} (on_time + off_time))')
 
 
 def keyword_instances(keyword, conf_txt): # returns all present instances of a keyword in conf_txt (index & line content)
@@ -53,48 +71,47 @@ def param_value(kw, conf_txt, _include_idxs_ = False):
     else:
         keyword = kw; keyword_filter = ''
     
-    
     keyword = keyword.strip(':'); keyword_filter = keyword_filter.strip(':') # remove ';' from passed keyword strings
-    
+
     # Dict of all keyword instances (line num : line content), filtered by instances not containing the keyword_filter
     kw_instances = {num: content for num, content in keyword_instances(keyword, conf_txt).items() 
                     if re.search(keyword_filter + "(:.+)", content, re.IGNORECASE)}
     
-    if not kw_instances: # If there are no instances of the keyword in the conf_txt, return None
-        return None
-    
-    elif len(kw_instances) == 1: # If there is one instance, grab the line it's contained on
-        line_num = int([k for k in kw_instances.keys()][0])
-    
-    elif len(kw_instances) > 1 and len(set(kw_instances.values())) == 1: # if there a multiple, equal instances of the keyword
+    if not kw_instances: # If there are no instances of the keyword in the conf_txt, raise error
+        error_msg = f"No instances of '{keyword}' found"
+        if keyword_filter != '': 
+            error_msg += f" on lines containing '{keyword_filter}.  Try your keyword without the filter word.'"
+        raise Exception(error_msg)
+
+    elif len(kw_instances) == 1 or len(kw_instances) > 1 and len(set(kw_instances.values())) == 1: # If there's one instance, or multiple, equal instances of the keyword
         line_num = int(list(kw_instances.keys())[0]) # simply use the first instance
     
     else: # otherwise, request a line to select from the user
         for l, c in kw_instances.items(): # print each instance the keyword, then ask user to select the containing line
             print(f'{l, c}\n')
-        line_num = int(input(f'{len(kw_instances)} instances of {keyword} after filtering. Select line number: '))
+        line_num = int(input(f'{len(kw_instances)} instances of {keyword}. Select line number: '))
 
+        
     # adds a space after ':' in any instances there is none, removes newline tag, and splits the conf_txt on spaces
     split_loi = re.sub(r'(?<=:)(?! )', ' ', conf_txt[line_num]).strip('\n').split(" ")
     
-    
+    kw = keyword.split(' ')
     for value_idx, value in enumerate(split_loi):
-        kw = keyword.split(' ')
+        value = value.strip(':')
         if len(kw) == 1 and re.match(keyword, value, re.IGNORECASE) or len(kw) == 2 and value_idx > 0 and \
             re.match(kw[0], split_loi[value_idx - 1], re.IGNORECASE) and \
             re.match(kw[1], value, re.IGNORECASE):
-            
+
             for vplus_idx, vplus in enumerate(split_loi[value_idx:]):
                 try:
                     float(vplus) # try converting the value at index vplus_idx after the index of the found kw to a float
                     if _include_idxs_:
-                        return line_idx, value_idx + vplus_idx, vplus # split loi index and value of corresponding kw
-                    else:
-                        return vplus # by default, only return the corresponding keyword (parameter) value
+                        return line_num, value_idx + vplus_idx, vplus # split loi index and value of corresponding kw
+                    return vplus # by default, only return the corresponding keyword (parameter) value
                 except:
                     continue # otherwise, jump to the next object in the split loi
-
-    return None # otherwise, jump to the next object in the split loi
+                    
+    return None
 
 
 def _replace_value_(kw, new_value, conf_txt):
@@ -108,11 +125,7 @@ def _replace_value_(kw, new_value, conf_txt):
     else:
         keyword = kw; keyword_filter = ''
     
-    param_idxs_value = param_value(kw, conf_txt, _include_idxs_ = True)
-    if param_idxs_value == None:
-        raise Exception(f"No instances of '{keyword}' on lines containing '{keyword_filter}' to replace.")
-    
-    line_num, value_idx, value = param_idxs_value 
+    line_num, value_idx, value = param_value(kw, conf_txt, _include_idxs_ = True)
     
     split_loi = re.sub(r'(?<=:)(?! )', ' ', conf_txt[line_num]).split(" ")
     if split_loi[value_idx] == split_loi[-1]: # if the kw is found at the last index (ie. end of the line)
@@ -142,7 +155,6 @@ def save_confs(new_confs, conf_dir = 'confs/'):
     for conf_name, conf_contents in new_confs.items():
         open(os.path.join(conf_dir, conf_name), 'w+').writelines(conf_contents)
 
-    print()
     print(f'Wrote {len(new_confs)} new conf files to: {conf_dir}')
 
     
@@ -202,11 +214,10 @@ def quick_conf(f, conf_dir, output_dir, nft_path = 'nftsim/bin/nftsim', params =
     
     
     # Generate .output file from .conf file
-    nftsim_shell_code = f'{nft_path} -i {conf_path} -o {output_path}'
-    # If the code is executed from a jupyter notebook, load the gcc module in the shell instance when calling nftsim
-    if get_ipython() is not None: 
-        nftsim_shell_code = "module load gcc/9.4.0 && " + nftsim_shell_code
-    subprocess.run(nftsim_shell_code, shell=True, capture_output = True)
+    nftsim_run(nftsim_path = nft_path, 
+               conf_path = conf_path, 
+               output_path = output_path,
+               load_gcc = True)
 
     df = output_to_df(output_path, gains = gains, full_path_name = full_path_name)
 
@@ -222,56 +233,70 @@ def quick_conf(f, conf_dir, output_dir, nft_path = 'nftsim/bin/nftsim', params =
 def gen_outputs(conf_dir,
                 output_dir,
                 batch,
-                nft_path): # run a grid job by default.  if passed as true, instead submit jobs to terminal one by one
+                nft_path,
+                n_tasks_per_job = 40): # run a grid job by default.  if passed as true, instead submit jobs to terminal one by one
 
+    conf_files = list_files(conf_dir, full_path = True, extension_filter = '.conf')
+    if not os.path.exists(output_dir): os.makedirs(output_dir)
+          
+    if batch:
+        unique_jobs = {}
+        for conf_num in range(0, len(conf_files), n_tasks_per_job):
+            chunk = conf_files[conf_num:conf_num + n_tasks_per_job]
+            unique_jobs[f'SynPy-nftsim-parallel_job{conf_num//n_tasks_per_job+1}'] = chunk
+        
+        for job_name, conf_chunks in unique_jobs.items():
+            job_submit_file = job_name + '_job_submit.sh'
+            job_status_file = job_name + '_job_status.out'
+            nftsim_job_lines = []
+            for conf_file in conf_chunks:
+                output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')
+                
+                nftsim_job_lines.append(f'  {nft_path} -i {conf_file} -o {output_file}')
+            
+            newline_str = '\n'
 
-    pause_length = 5
-
-    job_submit_file_str_tpl = \
-    """#!/bin/bash
-#SBATCH --ntasks 1
-#SBATCH --output <BATCH_STATUS_FNAME>
+            slurm_job_script = \
+            f"""#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node={len(nftsim_job_lines)}
+#SBATCH --output {os.path.join(output_dir, job_status_file)}
 #SBATCH --open-mode append
-#SBATCH --time=1:00:00
+#SBATCH --time=0:30:00
+#SBATCH --job-name {job_name}
 
+# Turn off implicit threading in Python, R
+export OMP_NUM_THREADS=1
+
+module load NiaEnv/2019b gnu-parallel
 module load python/3.8.5
 module load gcc/9.4.0
 
-cd <OUTDIR>
+parallel --joblog job.log -j $SLURM_TASKS_PER_NODE <<EOF
+{newline_str.join(nftsim_job_lines)}
+EOF
+            """
+            job_script_path = os.path.join(conf_dir, job_submit_file)
+            open(job_script_path, 'w+').write(slurm_job_script)
+            cmdstr = f'sbatch {job_script_path}'
+            
+            sp = subprocess.run(cmdstr, shell = True, capture_output = True)
+            if sp.returncode == 0:
+                output = sp.stdout.decode(); print(output)
+            else:
+                print(f'Command failed with return code {sp.returncode}')
+            
+    elif batch == False:
+        for conf_file in conf_files:
+            output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')
 
-<NFT_PATH> -i <CONF_FNAME> -o <OUT_FNAME>
+            # Generate .output file from .conf file
+            nftsim_run(nftsim_path = nft_path, 
+                       conf_path = conf_path, 
+                       output_path = output_file,
+                       load_gcc = True)
 
-    """
-    
-    conf_files = list_files(conf_dir, full_path = True, extension_filter = '.conf')
-    if not os.path.exists(output_dir): os.makedirs(output_dir)
-    
-    for conf_file in conf_files:
-        output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')
-        
-        if batch: 
-
-            job_submit_file = conf_file.replace('.conf','_job_submit.sh')
-            job_status_file = conf_file.replace('.conf', '_job_status.out')
-
-            job_submit_file_str = job_submit_file_str_tpl\
-                                .replace('<BATCH_STATUS_FNAME>', os.path.join(output_dir, job_status_file))\
-                                .replace('<OUTDIR>', output_dir)\
-                                .replace('<NFT_PATH>', nft_path)\
-                                .replace('<CONF_FNAME>', conf_file)\
-                                .replace('<OUT_FNAME>', output_file)
-
-            open(job_submit_file, 'w+').write(job_submit_file_str)
-
-            cmdstr = f'sbatch {job_submit_file}'
-            print(cmdstr)
-
-            os.system(cmdstr)
-
-        elif batch == False:
-            gcc_load_string = "module load gcc/9.4.0 &&"
-            os.system(f'{gcc_load_string} {nft_path} -i {conf_file} -o {output_file}')
-            print(f'Output file: {output_file.split("/")[-1]} complete')
+            print(f'Output file: {os.path.basename(output_file)} complete')
             print('===============')
 
 

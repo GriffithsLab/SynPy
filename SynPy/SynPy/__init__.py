@@ -9,7 +9,7 @@ from .nftsim_setup import nftsim_setup
 
 nftsim_setup() # Check if NFTsim exists in directory.  Optionally clone and compile if not. 
 sys.path.append('nftsim/')
-nft_path = 'nftsim/bin/nftsim'
+nftsim_path = 'nftsim/bin/nftsim'
 
 for d in ('confs/', 'outputs/'):
     if not os.path.exists(d): # if the directory doesn't exist, create it

@@ -29,18 +29,18 @@ class dot_output:
         self.f_name = os.path.basename(self.output_path)
         
         self.params = self._output_params()
-        self.time = float(param_value('Time', self.params)) # Length of simulation (in seconds)
-        self.dt = float(param_value('Deltat', self.params)) # Timestep
+        self.time = float(param_value('Time', self.params)) # Length of simulation (s)
+        self.dt = float(param_value('Deltat', self.params)) # Timestep (s)
         self.sampling_rate = 1 / float(param_value('Interval', self.params)) # Number of written datapoints per second of simulation
-        self.write_start = float(param_value('Start', self.params)) # Time in simulation when data begins being written
+        self.write_start = float(param_value('Start', self.params)) # Time in simulation when data begins being written (s)
         
         tms_param_dict = { # .conf keyword : class variable name
         'Onset': 'stim_onset', # Time in the stimulation when TMS begins (s)
         'Duration': 'stim_duration', # Total length of stimulation (s)
-        'Amplitude': 'stim_amplitude', # Stimulation amplitude of TMS pulses
-        'Bursts': 'stim_pulses_per_burst', # Number of TBS pulses per burst
-        'Burst Frequency': 'stim_intra_burst_freq', # Frequency of pulses within a burst
-        'Oscillation Frequency': 'stim_inter_burst_freq' # Frequency of bursts per second
+        'Amplitude': 'stim_amplitude', # Stimulation amplitude of TMS pulses; BELIEVE THIS IS IN THE UNIT OF microvolts (μV)
+        'Bursts': 'stim_pulses_per_burst', # Number of TBS pulses per burst (#)
+        'Burst Frequency': 'stim_intra_burst_freq', # Frequency of pulses within a burst (Hz)
+        'Oscillation Frequency': 'stim_inter_burst_freq' # Frequency of bursts per second (Hz)
         }
 
         for tms_param in tms_param_dict.keys(): # If the file has TMS in it, assign its parameters as attributes to the class
@@ -53,7 +53,7 @@ class dot_output:
         """
         Parses and returns the initial parameter segment of the output_path file.
         """
-        params = [] # param list
+        params = [] # param list; each list value is a .output file line
         with open(self.output_path, 'r') as O: # open .output file
             line = O.readline() # read in initial line
             while not line.startswith('====='): # if the line does not begin with '=====' (which prefaces the data)
@@ -82,14 +82,14 @@ class dot_output:
 
         
         if normalize:
-            field_df = (field_df-field_df.min()) / (field_df.max()-field_df.min())
+            field_df = (field_df - field_df.min()) / (field_df.max() - field_df.min())
        
     
         if gains:
             alpha = float(param_value('alpha|Dendrite 1', self.params)) # rise rate of post-synaptic potential
             beta = float(param_value('beta|Dendrite 1', self.params)) # decay rate of post-synaptic potential
-            Q_max = float(param_value('Qmax|Firing', self.params)) # population firing rate
-            sigmoid_theta = float(param_value('Sigmoid Theta|Firing', self.params)) # mean population firing threshold, relative to rest
+            Q_max = float(param_value('Qmax', self.params)) # population firing rate
+            sigmoid_theta = float(param_value('Sigmoid Theta', self.params)) # mean population firing threshold, relative to rest
             sigma = float(param_value('Sigma|Firing', self.params)) # standard deviation of soma voltage, relative to threshold
 
             gain_dict = {}
