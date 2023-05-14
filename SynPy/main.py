@@ -16,7 +16,10 @@ params = { # Replaces each dictionary key with the corresponding value in the .c
     'Time:' : 600
 }
 
+
 perm_dict = {'Bursts' : [2,20,1],
-             'Oscillation' : [1,20,1]}
+#              'Burst Frequency' : [25, 75, 1],
+             'Oscillation Frequency' : [1,20,.25]}
 
 
+gen_outputs(new_conf_dir, new_output_dir, batch = True, nft_path = 'nftsim/bin/nftsim')
