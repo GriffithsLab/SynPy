@@ -284,7 +284,7 @@ EOF
             if sp.returncode == 0:
                 output = sp.stdout.decode(); print(output)
             else:
-                print(f'Command failed with return code {sp.returncode}')
+                print(f'sbatch {os.path.basename(job_script_path)} failed with return code {sp.returncode}')
             
     elif batch == False:
         for conf_file in conf_files:
