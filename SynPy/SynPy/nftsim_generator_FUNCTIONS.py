@@ -243,7 +243,7 @@ def gen_outputs(conf_dir,
         unique_jobs = {}
         for conf_num in range(0, len(conf_files), n_tasks_per_job):
             chunk = conf_files[conf_num:conf_num + n_tasks_per_job]
-            unique_jobs[f'SynPy-nftsim-parallel_job{conf_num//n_tasks_per_job+1}'] = chunk
+            unique_jobs[f'SynPy-nftsim-parallel_job-{conf_num//n_tasks_per_job+1}'] = chunk
         
         for job_name, conf_chunks in unique_jobs.items():
             job_submit_file = job_name + '_job_submit.sh'
