@@ -3,7 +3,7 @@ from .output_handler import dot_output
 
 class dot_conf:
     def __init__(self, conf_path):
-        self.conf_path = conf_path
+        self.conf_path = os.path.abspath(conf_path)
         self.f_name = os.path.basename(self.conf_path)
         
         with open(self.conf_path, 'r') as f:
@@ -11,6 +11,16 @@ class dot_conf:
 
     def gen_confs(self, perm_dict, new_conf_dir, params = {}, write_confs = True):
         """
+        perm_dict -- Dictionary object containing n parameters and their corresponding value ranges to generate permuations for.
+                     Formatted as {'PARAMETER NAME' : [LOWEST VALUE, HIGHEST VALUE, STEP SIZE]}
+                     
+        new_conf_dir -- Directory to write the .conf permutations to.  Will create the directory if it does not exist.
+        
+        params (optional) -- Dictionary object to modify base parameters.
+                             Formatted as {'PARAMETER NAME' : NEW VALUE}
+                             
+        write_confs -- True/False write permutations to disk.  Useful for first checking if permutations look correct before creating files
+        
         Given a template .conf file and a dictionary object containing parameter values ranges to be iterated upon, 
         generates a new .conf for each unique permutation of parameters.  Writes each .conf file to disk by default.
         """
@@ -52,10 +62,16 @@ class dot_conf:
         Given a conf file path, a permutation dictionary, and new conf/output directory names, creates and writes each permutation 
         of the .conf file, then generates each corresponding .output file.
         
-        perm_dict: 
-        ex. perm_dict = {'Bursts' : [2,20,1],
-                         'Oscillation' : [1,20,.25]}
-                         
+        perm_dict -- Dictionary object containing n parameters and their corresponding value ranges to generate permuations for.
+                     Formatted as {'PARAMETER NAME' : [LOWEST VALUE, HIGHEST VALUE, STEP SIZE]}
+                     
+        new_conf_dir -- Directory to write the .conf permutations to.  Will create the directory if it does not exist.
+        
+        new_output_dir -- Directory to write the corresponding .output permutations to.  Will create the directory if it does not exist.
+        
+        params (optional) -- Dictionary object to modify base parameters.
+                             Formatted as {'PARAMETER NAME' : NEW VALUE}
+                             
         batch (optional; default: True):
             If True, submits jobs to process .conf files into .outputs through sbatch SLURM scheduler.
             If False, individually processes each .conf file through NFTsim.
