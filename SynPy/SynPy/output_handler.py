@@ -25,7 +25,7 @@ class dot_output:
             12 : 'sn'} # to relay from noise input
     
     def __init__(self, output_path):
-        self.output_path = output_path
+        self.output_path = os.path.abspath(output_path)
         self.f_name = os.path.basename(self.output_path)
         
         self.params = self._output_params()
