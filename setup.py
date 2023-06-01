@@ -13,6 +13,7 @@ setup(
     url='https://github.com/GriffithsLab/SynPy',
     packages=find_packages(),
     install_requires=requirements,
+    python_requires='>=3.8',
     classifiers=[
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.8',
