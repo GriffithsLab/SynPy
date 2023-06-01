@@ -31,6 +31,7 @@ class dot_output:
         self.params = self._output_params()
         self.time = float(param_value('Time', self.params)) # Length of simulation (s)
         self.dt = float(param_value('Deltat', self.params)) # Timestep (s)
+        self.nodes = int(param_value('Nodes', self.params)) # Number of nodes (#)
         self.sampling_rate = 1 / float(param_value('Interval', self.params)) # Number of written datapoints per second of simulation
         self.write_start = float(param_value('Start', self.params)) # Time in simulation when data begins being written (s)
         
@@ -45,8 +46,9 @@ class dot_output:
 
         for tms_param in tms_param_dict.keys(): # If the file has TMS in it, assign its parameters as attributes to the class
             try:
-                setattr(self, tms_param_dict[tms_param], float(param_value(tms_param, self.params)))
-            except ValueError:
+                param = param_value(tms_param, self.params)
+                setattr(self, tms_param_dict[tms_param], float(param))
+            except:
                 pass
         
     def _output_params(self):
@@ -62,22 +64,31 @@ class dot_output:
 
         return params
 
-    def df(self, gains=False, normalize=False):
+    def df(self, gains=False, normalize=False, _name_field_ = True):
         """
         Given the output_path file, constructs a dataframe object with each column representing a field and an index of time.
         """
         Res = NF(nf_output_file = self.output_path) # NFTsim .output class object
 
         field_dict = {}
-        for field in Res.fields: # for each field key
-            split_name = field.split('.') # split the string
-            if split_name[0] == 'pop': # if the field is a population (ie. Q, V; not a connection)
-                split_name[1] = self.pop_nums[int(split_name[1])] # grab the corresponding population label
-            else: # otherwise
-                split_name[1] = self.conn_mat[int(split_name[1])] # grab the corresponding connection matrix label
+        for field, node_ts in Res.data_dict.items(): # For each field and its nodes
+            for node, data in node_ts.items(): # for each node and its timeseries
+                if _name_field_: # Convert the field number to a population/connection letter
+                    split_name = field.split('.') # split the string
+                    if split_name[0] == 'pop': # if the field is a population (ie. Q, V; not a connection)
+                        split_name[1] = self.pop_nums[int(split_name[1])] # grab the corresponding population label
+                    else: # otherwise
+                        split_name[1] = self.conn_mat[int(split_name[1])] # grab the corresponding connection matrix label
+
+                    col_name = '.'.join(split_name) # construct the new name string
+                else: 
+                    col_name = field
+
+                if self.nodes > 1: 
+                    col_name = f"{col_name}_node.{node}"
+                
+                field_dict[col_name] = data
             
-            field_dict['.'.join(split_name)] = np.squeeze(Res.data[field])
-        
         field_df = pd.DataFrame(field_dict, index = Res.time + self.write_start)
 
         

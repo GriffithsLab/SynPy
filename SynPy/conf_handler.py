@@ -94,6 +94,7 @@ class dot_conf:
     def run(self, conf_dir = 'confs/', output_dir = 'outputs/', params = {},
             gains = False,
             normalize = False,
+            _name_field_ = True,
             nftsim_path = 'nftsim/bin/nftsim'):
         
         
@@ -116,4 +117,4 @@ class dot_conf:
                    output_path = output_path,
                    load_gcc = True)
 
-        return dot_output(output_path).df(gains, normalize)
+        return dot_output(output_path).df(gains, normalize, _name_field_)
