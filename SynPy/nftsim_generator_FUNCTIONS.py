@@ -20,13 +20,25 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 # sys.path.append('nftsim/')
-
 def nftsim_run(nftsim_path, conf_path, output_path, load_gcc = False):
     nftsim_shell_code = f'{nftsim_path} -i {conf_path} -o {output_path}'
-    if load_gcc: # scinet, SCC need to load gcc each time a new shell is created and ran, especially when ran from jupyter notebook
-        nftsim_shell_code = 'module load gcc/9.4.0 && ' + nftsim_shell_code # append 'module load gcc' to shell command 
-
-    subprocess.run(nftsim_shell_code, shell=True, capture_output = True)
+    if load_gcc:
+        try:
+            subprocess.run('module load gcc/9.4.0 && ' + nftsim_shell_code, shell=True, capture_output=True, check=True)
+        except subprocess.CalledProcessError as e:
+                print('Subprocess error occurred:', e)
+                print('Trying to run NFTsim without "module load".')
+                try:
+                    subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    print('Subprocess error occurred:', e)
+                    print('ERROR: Check subprocess shell command for running NFTsim.')
+    else:
+        try:
+            subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print('Subprocess error occurred:', e)
+            print('ERROR: Check subprocess shell command for running NFTsim.')
 
 
 def tbs_pulse_time(num_pulses, pulses_per_burst = 3, inter_burst_freq = 5, on_time = 2, off_time = 8, floor = False):
