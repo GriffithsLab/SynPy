@@ -1,4 +1,5 @@
 from .nftsim_generator_FUNCTIONS import *
+from .batch_jobs import *
 from utils.nftsim import NF
 
 class dot_output:
@@ -10,25 +11,29 @@ class dot_output:
             5 : 'n',
             6 : 'x'}
 
-    conn_mat = {
-            1 : 'ee', # excitatory onto itself
-            2 : 'ei', # to excitatory from inhibitory
-            3 : 'es', # to excitatory from relay
-            4 : 'ex', # to excitatory from tms
-            5 : 'ie', # to inhibitory from excitatory
-            6 : 'ii', # inhibitory onto itself
-            7 : 'is', # to inhibitory from relay
-            8 : 're', # to reticular from excitatory
-            9 : 'rs', # to reticular from reticular
-            10 : 'se', # to relay from excitatory
-            11 : 'sr', # to relay from reticular    
-            12 : 'sn'} # to relay from noise input
+#     conn_mat = {
+#             1 : 'ee', # excitatory onto itself
+#             2 : 'ei', # to excitatory from inhibitory
+#             3 : 'es', # to excitatory from relay
+#             4 : 'ex', # to excitatory from tms
+#             5 : 'ie', # to inhibitory from excitatory
+#             6 : 'ii', # inhibitory onto itself
+#             7 : 'is', # to inhibitory from relay
+#             8 : 're', # to reticular from excitatory
+#             9 : 'rs', # to reticular from reticular
+#             10 : 'se', # to relay from excitatory
+#             11 : 'sr', # to relay from reticular    
+#             12 : 'sn'} # to relay from noise input
     
     def __init__(self, output_path):
         self.output_path = os.path.abspath(output_path)
         self.f_name = os.path.basename(self.output_path)
+        if self.f_name.split('.')[-1] == 'conf':
+            raise Exception('dot_output does not manage .conf files.  Pass a .output file instead.') 
         
-        self.params = self._output_params()
+        self.params = self._output_params() # Parameter segment of file
+        self.conn_mat = self._conn_mat() # Construct connection matrix
+        
         self.time = float(param_value('Time', self.params)) # Length of simulation (s)
         self.dt = float(param_value('Deltat', self.params)) # Timestep (s)
         self.nodes = int(param_value('Nodes', self.params)) # Number of nodes (#)
@@ -46,9 +51,9 @@ class dot_output:
 
         for tms_param in tms_param_dict.keys(): # If the file has TMS in it, assign its parameters as attributes to the class
             try:
-                param = param_value(tms_param, self.params)
-                setattr(self, tms_param_dict[tms_param], float(param))
-            except:
+                param = float(param_value(tms_param, self.params))
+                setattr(self, tms_param_dict[tms_param], round(param, 4))
+            except Exception:
                 pass
         
     def _output_params(self):
@@ -63,10 +68,36 @@ class dot_output:
                 line = O.readline() # move onto next line in file
 
         return params
+    
+    def _conn_mat(self):
+        """
+        Given the default or passed dictionary object outlining the population number -> identifying letter, generate
+        the dictionary object for their connections with the 'receipt-sender' label.
+        """
+        matrix_idx  = [idx + 2 for idx, i in enumerate(self.params) if 'matrix:' in i] # index where connection matrix values begin
+        if not len(matrix_idx) == 1:
+            raise Exception('Either zero or multiple instances of "matrix:" present in parameters.  Cannot construct connection matrix.')
+            
+        matrix_idx = matrix_idx[0]
+        string_conn_mat = self.params[matrix_idx : matrix_idx + len(self.pop_nums)] # make the range equal to the length of the pop dict
+
+        matrix = [] # convert the string version of the conn_mat into a proper array
+        for row_num, row in enumerate(string_conn_mat): # for each row
+            row = row.split()[2:] # Exclude the row label and first column
+            row = [int(num) if num.isdigit() else 0 for num in row]
+            matrix.append(row)
+
+        conn_mat = {}
+        for row_num, row in enumerate(matrix): # for each row in the matrix (afferent population; To:)
+            for col_num, col in enumerate(row):  # for each column in the trow (efferent population; From:)
+                if matrix[row_num][col_num]: # if there is a non-zero number (ie. a connection)
+                    conn_mat[matrix[row_num][col_num]] = f'{self.pop_nums[row_num + 1]}{self.pop_nums[col_num + 1]}' # add to conn_mat dict
+                    
+        return conn_mat
 
     def df(self, gains=False, normalize=False, _name_field_ = True):
         """
-        Given the output_path file, constructs a dataframe object with each column representing a field and an index of time.
+        Given a .output file path, constructs a dataframe object with each column representing a field (+ nodes) and an index of time.
         """
         Res = NF(nf_output_file = self.output_path) # NFTsim .output class object
 
@@ -96,7 +127,7 @@ class dot_output:
             field_df = (field_df - field_df.min()) / (field_df.max() - field_df.min())
        
     
-        if gains:
+        if gains: # only used for corticothalamic models
             alpha = float(param_value('alpha|Dendrite 1', self.params)) # rise rate of post-synaptic potential
             beta = float(param_value('beta|Dendrite 1', self.params)) # decay rate of post-synaptic potential
             Q_max = float(param_value('Qmax', self.params)) # population firing rate
@@ -124,9 +155,6 @@ class dot_output:
             gain['X'] = gain['ee'] / (1 - gain['ei']) # Cortical loop gain
             gain['Y'] = (gain['g_ese'] + gain['g_esre']) / ((1 - gain['g_srs'])*(1 - gain['ei'])) # Cortico-thalamic loop gain
             gain['Z'] = -gain['g_srs'] * ((alpha*beta) / (alpha+beta)**2) # Intrathalamic loop gain
-
-            gain['pop.e.v'] = field_df['pop.e.v']
-            gain['propagator.ee.phi'] = field_df['propagator.ee.phi']
 
             return gain
 

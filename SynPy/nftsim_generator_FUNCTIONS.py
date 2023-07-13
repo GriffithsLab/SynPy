@@ -20,25 +20,35 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 # sys.path.append('nftsim/')
-def nftsim_run(nftsim_path, conf_path, output_path, load_gcc = False):
+def nftsim_run(nftsim_path, conf_path, output_path):
     nftsim_shell_code = f'{nftsim_path} -i {conf_path} -o {output_path}'
-    if load_gcc:
+    try:
+        subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
+    except:
         try:
             subprocess.run('module load gcc/9.4.0 && ' + nftsim_shell_code, shell=True, capture_output=True, check=True)
-        except subprocess.CalledProcessError as e:
-                print('Subprocess error occurred:', e)
-                print('Trying to run NFTsim without "module load".')
-                try:
-                    subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
-                except subprocess.CalledProcessError as e:
-                    print('Subprocess error occurred:', e)
-                    print('ERROR: Check subprocess shell command for running NFTsim.')
-    else:
-        try:
-            subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print('Subprocess error occurred:', e)
-            print('ERROR: Check subprocess shell command for running NFTsim.')
+        except subprocess.CalledProcessError as e: #'Errors may potentially be due to CPU environment permissions
+            raise Exception('NFTsim could not run.  Subprocess error occurred:', e)
+                
+    
+def string_params(string):
+    """
+    Given a permutaiton string, returns a dicitonary of all protocol parameters in the form {parameter-name: parameter value}
+    """
+    # Extract the parameter sets using regex
+    matches = re.findall(r'\[(.*?)\]', string)
+
+    # Create an empty dictionary
+    parameters = {}
+
+    # Iterate over the matches and extract parameter names and values
+    for match in matches:
+        params = match.split('_')
+        for param in params:
+            param_name, param_value = param.split('=')
+            parameters[param_name] = param_value
+
+    return parameters
 
 
 def tbs_pulse_time(num_pulses, pulses_per_burst = 3, inter_burst_freq = 5, on_time = 2, off_time = 8, floor = False):
@@ -126,7 +136,7 @@ def param_value(kw, conf_txt, _include_idxs_ = False):
     return None
 
 
-def _replace_value_(kw, new_value, conf_txt):
+def _replace_value_(kw, new_value, conf_txt, verbose):
     """
     Given a keyword and keyword filter (used for multiple instances of the keyword in the conf_txt), replaces the corresponding 
     parameter (keyword) value with a new_value in the passed conf_txt object. 
@@ -146,12 +156,14 @@ def _replace_value_(kw, new_value, conf_txt):
     split_loi[value_idx] = new_value # update the old value with the new at split line index vv
     conf_txt[line_num] = " ".join(split_loi) # re-combine the objects in split loi into a single, updated loi
     
-    print(f"Replacing {kw} '{value}' with '{new_value}' -- {conf_txt[line_num]}")
+    if verbose:
+        print(f"Replacing {kw} '{value}' with '{new_value}' -- {conf_txt[line_num]}")
+        
     conf_txt[:] = conf_txt # Update the conf_txt object in memory with the modified line
     
     
-def update_param(keyword, new_value, conf_txt):
-    _replace_value_(keyword, new_value, conf_txt)
+def update_param(keyword, new_value, conf_txt, verbose = True):
+    _replace_value_(keyword, new_value, conf_txt, verbose)
 
 
 def save_confs(new_confs, conf_dir = 'confs/'):
@@ -228,8 +240,7 @@ def quick_conf(f, conf_dir, output_dir, nft_path = 'nftsim/bin/nftsim', params =
     # Generate .output file from .conf file
     nftsim_run(nftsim_path = nft_path, 
                conf_path = conf_path, 
-               output_path = output_path,
-               load_gcc = True)
+               output_path = output_path)
 
     df = output_to_df(output_path, gains = gains, full_path_name = full_path_name)
 
@@ -241,75 +252,6 @@ def quick_conf(f, conf_dir, output_dir, nft_path = 'nftsim/bin/nftsim', params =
     print(df)
     
     return df
-
-def gen_outputs(conf_dir,
-                output_dir,
-                batch,
-                nft_path,
-                n_tasks_per_job = 40): # run a grid job by default.  if passed as true, instead submit jobs to terminal one by one
-
-    conf_files = list_files(conf_dir, full_path = True, extension_filter = '.conf')
-    if not os.path.exists(output_dir): os.makedirs(output_dir)
-          
-    if batch:
-        unique_jobs = {}
-        for conf_num in range(0, len(conf_files), n_tasks_per_job):
-            chunk = conf_files[conf_num:conf_num + n_tasks_per_job]
-            unique_jobs[f'SynPy-nftsim-parallel_job-{conf_num//n_tasks_per_job+1}'] = chunk
-        
-        for job_name, conf_chunks in unique_jobs.items():
-            job_submit_file = job_name + '_job_submit.sh'
-            job_status_file = job_name + '_job_status.out'
-            nftsim_job_lines = []
-            for conf_file in conf_chunks:
-                output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')
-                
-                nftsim_job_lines.append(f'  {nft_path} -i {conf_file} -o {output_file}')
-            
-            newline_str = '\n'
-
-            slurm_job_script = \
-            f"""#!/bin/bash
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node={len(nftsim_job_lines)}
-#SBATCH --output {os.path.join(output_dir, job_status_file)}
-#SBATCH --open-mode append
-#SBATCH --time=0:30:00
-#SBATCH --job-name {job_name}
-
-# Turn off implicit threading in Python, R
-export OMP_NUM_THREADS=1
-
-module load NiaEnv/2019b gnu-parallel
-module load python/3.8.5
-module load gcc/9.4.0
-
-parallel --joblog job.log -j $SLURM_TASKS_PER_NODE <<EOF
-{newline_str.join(nftsim_job_lines)}
-EOF
-            """
-            job_script_path = os.path.join(conf_dir, job_submit_file)
-            open(job_script_path, 'w+').write(slurm_job_script)
-            cmdstr = f'sbatch {job_script_path}'
-            
-            sp = subprocess.run(cmdstr, shell = True, capture_output = True)
-            if sp.returncode == 0:
-                output = sp.stdout.decode(); print(output)
-            else:
-                print(f'sbatch {os.path.basename(job_script_path)} failed with return code {sp.returncode}')
-            
-    elif batch == False:
-        for conf_file in conf_files:
-            output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')
-
-            # Generate .output file from .conf file
-            nftsim_run(nftsim_path = nft_path, 
-                       conf_path = conf_path, 
-                       output_path = output_file,
-                       load_gcc = True)
-
-            print(f'Output file: {os.path.basename(output_file)} complete')
-            print('===============')
 
 
 def _natural_sort_(string_list):
@@ -460,6 +402,17 @@ def gen_ts_grid(f, conf_dir, output_dir, grid_type = 'ts'):
     plt.savefig(os.getcwd() + '/grids/' + f.split('.')[0] + f'_{grid_type}_grid.png')
 
 
+def PSD(signal, sampling_freq):
+#     nperseg = sampling_freq * 10
+    
+    freqs, power = welch(signal.values.reshape(len(signal)), fs = sampling_freq, nperseg = 10000)#, nperseg=nperseg)
+    
+    welch_df = pd.DataFrame({'power': power}, index = freqs) # power value at each frequency biny
+    welch_df.index.names = ['freq_bins'] # frequency bins
+    
+    return welch_df
+    
+    
 def pre_post_PSD(pre_signal, post_signal, sampling_freq):
     """
     pre_signal
@@ -471,19 +424,20 @@ def pre_post_PSD(pre_signal, post_signal, sampling_freq):
         pre-post PSD dataframe, with index values representing frequency bins and column values representing signal power within each
     """
 
-    pre_freqs, pre_power = welch(pre_signal.values.reshape(len(pre_signal)), fs = sampling_freq)
-    post_freqs, post_power = welch(post_signal.values.reshape(len(post_signal)), fs = sampling_freq)
+    pre_signal_psd = PSD(pre_signal, sampling_freq).rename(columns={'power': 'pre_power'})
+    post_signal_psd = PSD(post_signal, sampling_freq).rename(columns={'power': 'post_power'})
     
-    welch_df = pd.DataFrame({'pre_power': pre_power, 
-                             'post_power' : post_power}, index = pre_freqs)
-    welch_df.index.names = ['frequency_bins']
+    pre_post_df = pd.concat([pre_signal_psd, post_signal_psd], axis=1)
     
-    return welch_df
+    return pre_post_df
     
 
-def AUC_power_delta(pre_signal,
+def PSD_power_delta(pre_signal,
                     post_signal,
-                    sampling_freq, 
+                    sampling_freq,
+                    
+                    bin_min = 8, # minimum frequency range
+                    bin_max = 13, # maximum frequency range to examine PSD power AUC
                     
                     fooof_correct = False):
     """
@@ -509,17 +463,26 @@ def AUC_power_delta(pre_signal,
         fm.fit(bins, post_spectrum, freq_range)
         post_fooof = fm.get_params('peak_params')
 
+#         alpha_freq = int(input('YOU NEED TO CHOOSE THE CENTRAL FREQ TO CHOOSE WHICH PEAK SHOULD BE EXAMIND'))
         alpha_freq = 10
-        pre_pwr = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[2]
-        post_pwr = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[2]
+    
+        pre_pwr = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[1]
+        post_pwr = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[1]
+        
+#         pre_lower_bound = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] - 2
+#         pre_upper_bound = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] + 2
+        
+#         post_lower_bound = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] - 2
+#         post_upper_bound = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] + 2
+
 
         FOOOF_AUC_diff = (pre_pwr-post_pwr)/(pre_pwr)
         
         return FOOOF_AUC_diff
     
     
-    pre_stim_alpha_bins = welch_df['pre_power'][8:13]
-    post_stim_alpha_bins = welch_df['post_power'][8:13]
+    pre_stim_alpha_bins = welch_df['pre_power'][bin_min:bin_max]
+    post_stim_alpha_bins = welch_df['post_power'][bin_min:bin_max]
     
     pre_alpha_auc = np.trapz(pre_stim_alpha_bins)
     post_alpha_auc = np.trapz(post_stim_alpha_bins)
