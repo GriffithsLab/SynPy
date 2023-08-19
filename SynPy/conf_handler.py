@@ -1,5 +1,14 @@
-from .nftsim_generator_FUNCTIONS import *
+import os
+from .nftsim_generator_FUNCTIONS import (
+    param_value, 
+    update_param, 
+    generate_permutations, 
+    tbs_pulse_time, 
+    save_confs, 
+    nftsim_run
+)
 from .output_handler import dot_output
+from .batch_jobs import gen_outputs
 
 class dot_conf:
     def __init__(self, conf_path):
@@ -77,7 +86,11 @@ class dot_conf:
         return len(new_confs)
     
     
-    def grid_outputs(self, perm_dict, new_conf_dir, new_output_dir, params = {}, dynamic_dose = None, batch = True, nft_path = 'nftsim/bin/nftsim'):
+    def grid_outputs(self, perm_dict, new_conf_dir, new_output_dir, params = {}, 
+                     
+                     dynamic_dose = None, 
+                     batch = True, 
+                     nft_path = 'nftsim/bin/nftsim'):
         """
         Given a conf file path, a permutation dictionary, and new conf/output directory names, creates and writes each permutation 
         of the .conf file, then generates each corresponding .output file.
@@ -96,7 +109,6 @@ class dot_conf:
             If True, submits jobs to process .conf files into .outputs through sbatch SLURM scheduler.
             If False, individually processes each .conf file through NFTsim.
         """
-
 
         grid_points = self.gen_confs(perm_dict, new_conf_dir, params, dynamic_dose)
 

@@ -1,5 +1,7 @@
-from .nftsim_generator_FUNCTIONS import *
-from .batch_jobs import *
+import os
+import numpy as np
+import pandas as pd
+from .nftsim_generator_FUNCTIONS import param_value
 from utils.nftsim import NF
 
 class dot_output:
@@ -20,7 +22,7 @@ class dot_output:
 #             6 : 'ii', # inhibitory onto itself
 #             7 : 'is', # to inhibitory from relay
 #             8 : 're', # to reticular from excitatory
-#             9 : 'rs', # to reticular from reticular
+#             9 : 'rs', # to reticular from relay
 #             10 : 'se', # to relay from excitatory
 #             11 : 'sr', # to relay from reticular    
 #             12 : 'sn'} # to relay from noise input
@@ -136,7 +138,7 @@ class dot_output:
 
             gain_dict = {}
             
-            ct_connections = {k: v for k, v in self.conn_mat.items() if v not in {'ex', 'sn'}} # remove the non-synaptic connections
+            ct_connections = {k: v for k, v in self.conn_mat.items() if v not in {'ex'}} # remove the non-synaptic connections
             for conn_num, conn_name in ct_connections.items():
                 postsynaptic_pop_name = conn_name[0]  # from each connection, grab corresponding postsynaptic pop #
 

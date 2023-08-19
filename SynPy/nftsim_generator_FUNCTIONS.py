@@ -402,18 +402,24 @@ def gen_ts_grid(f, conf_dir, output_dir, grid_type = 'ts'):
     plt.savefig(os.getcwd() + '/grids/' + f.split('.')[0] + f'_{grid_type}_grid.png')
 
 
-def PSD(signal, sampling_freq):
-#     nperseg = sampling_freq * 10
+def PSD(signal, sampling_freq, normalize = False):
     
-    freqs, power = welch(signal.values.reshape(len(signal)), fs = sampling_freq, nperseg = 10000)#, nperseg=nperseg)
+    freqs, power = welch(signal.values.reshape(len(signal)), fs = sampling_freq, nperseg = sampling_freq*5)
     
     welch_df = pd.DataFrame({'power': power}, index = freqs) # power value at each frequency biny
     welch_df.index.names = ['freq_bins'] # frequency bins
+ 
+    if normalize:
+        normalized_PSD = welch_df.copy()
+        total_power = normalized_PSD['power'].sum()
+        normalized_PSD['power'] = normalized_PSD['power'] / total_power
+    
+        return normalized_PSD
     
     return welch_df
     
     
-def pre_post_PSD(pre_signal, post_signal, sampling_freq):
+def pre_post_PSD(pre_signal, post_signal, sampling_freq, normalize = False):
     """
     pre_signal
     post_signal
@@ -424,8 +430,8 @@ def pre_post_PSD(pre_signal, post_signal, sampling_freq):
         pre-post PSD dataframe, with index values representing frequency bins and column values representing signal power within each
     """
 
-    pre_signal_psd = PSD(pre_signal, sampling_freq).rename(columns={'power': 'pre_power'})
-    post_signal_psd = PSD(post_signal, sampling_freq).rename(columns={'power': 'post_power'})
+    pre_signal_psd = PSD(pre_signal, sampling_freq, normalize).rename(columns={'power': 'pre_power'})
+    post_signal_psd = PSD(post_signal, sampling_freq, normalize).rename(columns={'power': 'post_power'})
     
     pre_post_df = pd.concat([pre_signal_psd, post_signal_psd], axis=1)
     
@@ -439,12 +445,13 @@ def PSD_power_delta(pre_signal,
                     bin_min = 8, # minimum frequency range
                     bin_max = 13, # maximum frequency range to examine PSD power AUC
                     
+                    normalize = False,
                     fooof_correct = False):
     """
     eirs_signal: Takes a pandas dataframe/series containing a series to compare pre-post AUC power (ex. pop.1.v, propagator.1.phi)
     """
     
-    welch_df = pre_post_PSD(pre_signal, post_signal, sampling_freq)
+    welch_df = pre_post_PSD(pre_signal, post_signal, sampling_freq, normalize)
     
     # PSD with FOOOF 1/f correction
     if fooof_correct:
@@ -494,14 +501,15 @@ def PSD_power_delta(pre_signal,
 
 def graph_PSD_delta(pre_signal, 
                     post_signal,
-                    sampling_freq):
+                    sampling_freq, 
+                    normalize = False):
     """
     Argument:
         eirs_grid multi-index dataframe
     
     Plots interact_manual PSD graph for jupyter notebook
     """
-    welch_df = pre_post_PSD(pre_signal, post_signal, sampling_freq)
+    welch_df = pre_post_PSD(pre_signal, post_signal, sampling_freq, normalize)
 
     psd_fig, psd_ax = plt.subplots(figsize = (20,10))
 

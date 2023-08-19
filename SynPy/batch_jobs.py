@@ -1,5 +1,7 @@
+import sys
 import os
 import subprocess
+from .nftsim_generator_FUNCTIONS import list_files, nftsim_run
 
 def gen_outputs(conf_dir, output_dir, batch, nft_path, n_tasks_per_job = 40):
     """
@@ -55,7 +57,8 @@ EOF
             if subproc.returncode == 0:
                 output = subproc.stdout.decode(); print(output)
             else:
-                print(f'{cmdstr} failed with return code {subproc.returncode}')
+                print(f'{cmdstr} failed with return code {subproc.returncode}') # error 127 = ssh into a compute (non-login) node
+                sys.exit()
             
     elif batch == False:
         for conf_file in conf_files:
