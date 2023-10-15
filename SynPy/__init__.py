@@ -11,3 +11,4 @@ from .nftsim_generator_FUNCTIONS import *
 from .spectra_functions import *
 from .conf_handler import *
 from .output_handler import *
+from .load import *

@@ -1,11 +1,12 @@
+import os
 import multiprocessing as mp
 import fnmatch
 from tqdm import tqdm
 import pandas as pd
-from ..nftsim_generator_FUNCTIONS import list_files, protocol_params, tbs_train_dose
-from ..output_handler import dot_output
-from ..spectra_functions import PSD, PSD_delta
-from ..param_space import valid_iTBS_protocols
+from .nftsim_generator_FUNCTIONS import list_files, protocol_params, tbs_train_dose
+from .output_handler import dot_output
+from .spectra_functions import PSD, PSD_delta
+from .param_space import valid_iTBS_protocols
 
 class perm_load:
     def __init__(self, output_dir):
@@ -16,7 +17,7 @@ class perm_load:
         """
         self.output_dir = output_dir
         self.output_files = list_files(self.output_dir, full_path=True, extension_filter='.output')
-        if len(grid) < 1:
+        if len(self.output_files) < 1:
             raise Exception('Directory path contains no files.')
 
         self.output_files = [op for op in self.output_files if os.path.basename(op) in valid_iTBS_protocols()] # permuations with physiological valid protocols 
@@ -92,7 +93,7 @@ class perm_load:
         perm_df['train_dose'] = tbs_train_dose(pulses_per_burst = perm_df['PARAM_bur'], inter_burst_freq = perm_df['PARAM_osc'])
 
         num_params = len(next(iter(protocol_params.values())))
-        return = perm_df.sort_values(by = list(perm_df.columns[-num_params:]), ascending = [True] * num_params)
+        return perm_df.sort_values(by = list(perm_df.columns[-num_params:]), ascending = [True] * num_params)
          
         
     def df_row_builder(output_file, df_dict):

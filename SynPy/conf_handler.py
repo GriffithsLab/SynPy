@@ -127,9 +127,9 @@ class dot_conf:
     
     def grid_outputs(self, perm_dict, new_conf_dir, new_output_dir, params = {}, 
                      
-                     dynamic_dose = None, 
+                     dynamic_dose = None,
+                     filtered_perms = True,
                      batch = True,
-                     filtered_perms = True
                      nft_path = 'nftsim/bin/nftsim'):
         """
         Given a conf file path, a permutation dictionary, and new conf/output directory names, creates and writes each permutation 
