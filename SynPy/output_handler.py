@@ -6,12 +6,12 @@ from utils.nftsim import NF
 
 class dot_output:
     pop_nums = {
-            1 : 'e',
-            2 : 'i',
-            3 : 'r',
-            4 : 's',
-            5 : 'n',
-            6 : 'x'}
+            1 : 'e', # excitatory
+            2 : 'i', # inhibitory
+            3 : 'r', # reticular
+            4 : 's', # relay
+            5 : 'n', # noise input
+            6 : 'x'} # TMS
 
 #     conn_mat = {
 #             1 : 'ee', # excitatory onto itself
@@ -57,6 +57,9 @@ class dot_output:
                 setattr(self, tms_param_dict[tms_param], round(param, 4))
             except Exception:
                 pass
+            
+    def __call__(self):
+        return self.params
         
     def _output_params(self):
         """
@@ -96,12 +99,18 @@ class dot_output:
                     conn_mat[matrix[row_num][col_num]] = f'{self.pop_nums[row_num + 1]}{self.pop_nums[col_num + 1]}' # add to conn_mat dict
                     
         return conn_mat
+    
+    def NFTsim_obj(self):
+        """
+        Returns the NFTsim output class object.
+        """
+        return NF(nf_output_file = self.output_path)
 
-    def df(self, gains=False, normalize=False, _name_field_ = True):
+    def df(self, gains = False, normalize = False, _name_field_ = True):
         """
         Given a .output file path, constructs a dataframe object with each column representing a field (+ nodes) and an index of time.
         """
-        Res = NF(nf_output_file = self.output_path) # NFTsim .output class object
+        Res = self.NFTsim_obj() # NFTsim output class object; calls the __call__ method of the present class
 
         field_dict = {}
         for field, node_ts in Res.data_dict.items(): # For each field and its nodes
@@ -138,7 +147,7 @@ class dot_output:
 
             gain_dict = {}
             
-            ct_connections = {k: v for k, v in self.conn_mat.items() if v not in {'ex'}} # remove the non-synaptic connections
+            ct_connections = {k: v for k, v in self.conn_mat.items() if v not in {'ex', 'sn'}} # remove the non-synaptic connections
             for conn_num, conn_name in ct_connections.items():
                 postsynaptic_pop_name = conn_name[0]  # from each connection, grab corresponding postsynaptic pop #
 
@@ -161,3 +170,4 @@ class dot_output:
             return gain
 
         return field_df
+

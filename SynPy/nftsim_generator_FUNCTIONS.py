@@ -1,39 +1,15 @@
 # Data & directory navigation
 import os
-import time
 import sys
 import glob
-import numpy as np
-import pandas as pd
 import re
 import subprocess
-from tqdm import tqdm # gives progress status of for loop processing
-from IPython import get_ipython
 
-from itertools import product
-from scipy.signal import welch
-from utils.nftsim import NF
-from fooof import FOOOF
 
-# Visualization
-from matplotlib import pyplot as plt
-import seaborn as sns
-
-# sys.path.append('nftsim/')
-def nftsim_run(nftsim_path, conf_path, output_path):
-    nftsim_shell_code = f'{nftsim_path} -i {conf_path} -o {output_path}'
-    try:
-        subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
-    except:
-        try:
-            subprocess.run('module load gcc/9.4.0 && ' + nftsim_shell_code, shell=True, capture_output=True, check=True)
-        except subprocess.CalledProcessError as e: #'Errors may potentially be due to CPU environment permissions
-            raise Exception('NFTsim could not run.  Subprocess error occurred:', e)
-                
-    
-def string_params(string):
+def protocol_params(string):
     """
-    Given a permutaiton string, returns a dicitonary of all protocol parameters in the form {parameter-name: parameter value}
+    Given a permutation string (ex. eirs-tms-custom_PERM_[bur=10.00_osc=1.75].output), returns a dicitonary of all protocol 
+    parameters in the form {parameter-name: parameter value}.
     """
     # Extract the parameter sets using regex
     matches = re.findall(r'\[(.*?)\]', string)
@@ -48,8 +24,13 @@ def string_params(string):
             param_name, param_value = param.split('=')
             parameters[param_name] = param_value
 
-    return parameters
+    return parameters   
 
+def tbs_train_dose(pulses_per_burst, inter_burst_freq, on_time = 2, off_time = 8):
+    return tbs_time_pulse(stim_length = on_time + off_time, 
+                          pulses_per_burst = pulses_per_burst, 
+                          inter_burst_freq = inter_burst_freq,
+                          floor = False)
 
 def tbs_pulse_time(num_pulses, pulses_per_burst = 3, inter_burst_freq = 5, on_time = 2, off_time = 8, floor = False):
     """
@@ -60,6 +41,69 @@ def tbs_pulse_time(num_pulses, pulses_per_burst = 3, inter_burst_freq = 5, on_ti
     
     # use floor division of train length if 'floor' passed
     return eval(f'num_pulses / ((pulses_per_burst*inter_burst_freq*on_time) {"//" if floor else "/"} (on_time + off_time))')
+
+
+def tbs_time_pulse(stim_length, pulses_per_burst = 3, inter_burst_freq = 5, on_time = 2, off_time = 8, floor = False):
+    """
+    Calculate the amount of pulses that are administered with theta burst stimulation for a given stimulation length.  
+    e.g. how many pulses come from 200 seconds of standard iTBS? returns 600
+    
+    
+    Defaults to iTBS.  Set off_time = 0 for cTBS
+    """
+    
+    # use floor division of train length if 'floor' passed
+    return eval(f'stim_length * ((pulses_per_burst*inter_burst_freq*on_time) {"//" if floor else "/"} (on_time + off_time))')
+
+
+# sys.path.append('nftsim/')
+def nftsim_run(nftsim_path, conf_path, output_path):
+    nftsim_shell_code = f'{nftsim_path} -i {conf_path} -o {output_path}'
+    try:
+        subprocess.run(nftsim_shell_code, shell=True, capture_output=True, check=True)
+    except:
+        try:
+            subprocess.run('module load gcc/9.4.0 && ' + nftsim_shell_code, shell=True, capture_output=True, check=True)
+        except subprocess.CalledProcessError as e: #'Errors may potentially be due to CPU environment permissions
+            raise Exception('NFTsim could not run.  Subprocess error occurred:', e)
+
+def _natural_sort_(string_list):
+    """
+    Given a list of strings, returns them in natural alphanumeric order.
+    """
+    
+    convert = lambda text: int(text) if text.isdigit() else text.lower() 
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)] 
+    
+    return sorted(string_list, key=alphanum_key)    
+
+
+def list_files(file_dir, full_path = False, extension_filter = ''):
+    """
+    Given a directory containing multiple files, returns a sorted alphanumeric list of their name strings.
+    
+    Optional parameter: 
+        full_path (default: False) may be set to True to return the absolute path string instead of only the file name.
+    """
+    if full_path:
+        # returns list of absolute path strings
+        return _natural_sort_([o for o in glob.glob(os.path.join(file_dir, '*')) if o.endswith(extension_filter)]) 
+    else:
+        # returns list of file name strings only
+        return _natural_sort_([o for o in os.listdir(file_dir) if o.endswith(extension_filter)])
+
+
+def tbs_train_dosage(pulses_per_burst, inter_burst_freq, on_time = 2, off_time = 8,):
+    """
+    Calculate the pulse dosage (number of administered pulses) per TBS train.
+    """
+
+    
+    train_dosage = tbs_time_pulse(stim_length = on_time + off_time, 
+                                  pulses_per_burst = pulses_per_burst,
+                                  inter_burst_freq = inter_burst_freq)
+
+    return train_dosage
 
 
 def keyword_instances(keyword, conf_txt): # returns all present instances of a keyword in conf_txt (index & line content)
@@ -181,355 +225,165 @@ def save_confs(new_confs, conf_dir = 'confs/'):
 
     print(f'Wrote {len(new_confs)} new conf files to: {conf_dir}')
 
+
+# def quick_conf(f, conf_dir, output_dir, nft_path = 'nftsim/bin/nftsim', params = {}, gains = False, full_path_name = False, save_csv = False):
+#     """
+#     Given a .conf file, generates a .output file and returns its contents as a dataframe.
+#     """
     
-def generate_permutations(loop_dict):
-    """
-    Takes a dictionary object with the name of the parameter being manipulated as the key, and the [start, stop, stepsize] list
-    as the corresponding value.
-    Ex.
-    {'ppb': [1, 20, .25],
-     'osc': [1, 20, .25],
-     'amp': [70, 120, 5]}
-     
-     
-    Returns a list containing tuple objects of each unique permutation.
-    Ex.
-    [(1, 1.0, 70),
-     (1, 1.0, 75),
-     (1, 1.0, 80),
-     ...]
-    """
-    
-    # Generate a list of loop ranges
-    loop_ranges = [np.arange(start, stop + step, step) for loop_name, [start, stop, step] in loop_dict.items()]
-
-    # Use the product function from the itertools module
-    # to generate all permutations of the loop ranges
-    perm_list = product(*loop_ranges)
-
-    # Capture each unique permutation in a list
-    all_permutations =  [perm for perm in perm_list]
-
-    # Return all unique permutations
-    return all_permutations
-
-def quick_conf(f, conf_dir, output_dir, nft_path = 'nftsim/bin/nftsim', params = {}, gains = False, full_path_name = False, save_csv = False):
-    """
-    Given a .conf file, generates a .output file and returns its contents as a dataframe.
-    """
-    
-    with open(f, 'r') as F:
-        conf_txt = F.readlines()
+#     with open(f, 'r') as F:
+#         conf_txt = F.readlines()
         
-    gen_file_string = str(f.split('.')[0]) + '_QUICK' # take the f name string, remove the '.conf', append tag
-    conf_name = gen_file_string + '.conf'
-    output_name = gen_file_string + '.output'
+#     gen_file_string = str(f.split('.')[0]) + '_QUICK' # take the f name string, remove the '.conf', append tag
+#     conf_name = gen_file_string + '.conf'
+#     output_name = gen_file_string + '.output'
     
-    conf_path = os.path.join(conf_dir, conf_name)
-    output_path = os.path.join(output_dir, output_name)
+#     conf_path = os.path.join(conf_dir, conf_name)
+#     output_path = os.path.join(output_dir, output_name)
     
-    # Update the value of each parameter within the passed 'params' dictionary, if the dict contains items
-    if params:
-        [update_param(kw, value, conf_txt) for kw, value in params.items()]
+#     # Update the value of each parameter within the passed 'params' dictionary, if the dict contains items
+#     if params:
+#         [update_param(kw, value, conf_txt) for kw, value in params.items()]
     
-    save_confs(
-       new_confs = {conf_name:conf_txt[:]},
-       conf_dir = conf_dir)
+#     save_confs(
+#        new_confs = {conf_name:conf_txt[:]},
+#        conf_dir = conf_dir)
     
     
-    # Generate .output file from .conf file
-    nftsim_run(nftsim_path = nft_path, 
-               conf_path = conf_path, 
-               output_path = output_path)
+#     # Generate .output file from .conf file
+#     nftsim_run(nftsim_path = nft_path, 
+#                conf_path = conf_path, 
+#                output_path = output_path)
 
-    df = output_to_df(output_path, gains = gains, full_path_name = full_path_name)
+#     df = output_to_df(output_path, gains = gains, full_path_name = full_path_name)
 
-    if save_csv: 
-        if not os.path.exists(os.getcwd() + '/csv/'): os.makedirs(os.getcwd() + '/csv/')
-        df.to_csv(f"/{os.getcwd()}/csv/{f.split('.')[0]}.csv")
+#     if save_csv: 
+#         if not os.path.exists(os.getcwd() + '/csv/'): os.makedirs(os.getcwd() + '/csv/')
+#         df.to_csv(f"/{os.getcwd()}/csv/{f.split('.')[0]}.csv")
     
-    print()
-    print(df)
+#     print()
+#     print(df)
     
-    return df
+#     return df
 
-
-def _natural_sort_(string_list):
-    """
-    Given a list of strings, returns them in natural alphanumeric order.
-    """
-    
-    convert = lambda text: int(text) if text.isdigit() else text.lower() 
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)] 
-    
-    return sorted(string_list, key=alphanum_key)    
-
-
-def list_files(file_dir, full_path = False, extension_filter = ''):
-    """
-    Given a directory containing multiple files, returns a sorted alphanumeric list of their name strings.
-    
-    Optional parameter: 
-        full_path (default: False) may be set to True to return the absolute path string instead of only the file name.
-    """
-    if full_path:
-        # returns list of absolute path strings
-        return _natural_sort_([o for o in glob.glob(os.path.join(file_dir, '*')) if o.endswith(extension_filter)]) 
-    else:
-        # returns list of file name strings only
-        return _natural_sort_([o for o in os.listdir(file_dir) if o.endswith(extension_filter)])
-        
 
             
-def firing_lock_check(time_s, conf_txt, stim_onset, stim_duration, detect_threshold = .90):
-    print(f'time_s: {time_s}')
+# def firing_lock_check(time_s, conf_txt, stim_onset, stim_duration, detect_threshold = .90):
+#     print(f'time_s: {time_s}')
     
-    qmax = float(param_value('Qmax:', conf_txt)[1]) # Maximum firing rate allowed in the simulation
-#     stim_start_time =  float(param_value('Onset:', conf_txt, instance_guide = tms_type)[1]) # Time into simulation when stimulation begins being administered
-    stim_start_time = stim_onset
-#     stim_duration = float(param_value('Duration:', conf_txt)[1]) # Total time in seconds stimulation is administered
-    stim_duration = stim_duration
-    on_time = spike_length = int(param_value('On:', conf_txt)[1]) # Train interval; how long in seconds a spike occurs for; almost always proportional to ON time
-    off_time = int(param_value('Off:', conf_txt)[1]) # Inter-train interval
-    train_length = on_time + off_time # total time (s) of a stimulation ON + OFF cycle (1 full train)
-    num_spikes = int(stim_duration / train_length) # duration of stimulation / the stimulation incremenet in seconds
-    sampling_freq = 1 / float(param_value('Interval:', conf_txt)[1]) # in Hz
+#     qmax = float(param_value('Qmax:', conf_txt)[1]) # Maximum firing rate allowed in the simulation
+# #     stim_start_time =  float(param_value('Onset:', conf_txt, instance_guide = tms_type)[1]) # Time into simulation when stimulation begins being administered
+#     stim_start_time = stim_onset
+# #     stim_duration = float(param_value('Duration:', conf_txt)[1]) # Total time in seconds stimulation is administered
+#     stim_duration = stim_duration
+#     on_time = spike_length = int(param_value('On:', conf_txt)[1]) # Train interval; how long in seconds a spike occurs for; almost always proportional to ON time
+#     off_time = int(param_value('Off:', conf_txt)[1]) # Inter-train interval
+#     train_length = on_time + off_time # total time (s) of a stimulation ON + OFF cycle (1 full train)
+#     num_spikes = int(stim_duration / train_length) # duration of stimulation / the stimulation incremenet in seconds
+#     sampling_freq = 1 / float(param_value('Interval:', conf_txt)[1]) # in Hz
     
     
-    time_s = time_s.loc[stim_start_time : (stim_start_time + stim_duration)] # Trim the timeseries down to only the TMS ON portion
-    for spike in range(num_spikes): # for each spike in the total number of spikes that occur in the stim. time series:
-        spike_timing = (spike * train_length) # time (in seconds) in which a given spike first occurs
-        spike_idx = int(spike_timing * sampling_freq)  # positional index of when a spike first occurs
+#     time_s = time_s.loc[stim_start_time : (stim_start_time + stim_duration)] # Trim the timeseries down to only the TMS ON portion
+#     for spike in range(num_spikes): # for each spike in the total number of spikes that occur in the stim. time series:
+#         spike_timing = (spike * train_length) # time (in seconds) in which a given spike first occurs
+#         spike_idx = int(spike_timing * sampling_freq)  # positional index of when a spike first occurs
         
 
-        spike_firing_rate = time_s.iloc[spike_idx].values
-        bt_spike_firing_rate = min(time_s.iloc[int((spike_timing + spike_length) * sampling_freq) : int((spike_timing + train_length) * sampling_freq)].values)
+#         spike_firing_rate = time_s.iloc[spike_idx].values
+#         bt_spike_firing_rate = min(time_s.iloc[int((spike_timing + spike_length) * sampling_freq) : int((spike_timing + train_length) * sampling_freq)].values)
         
-        if (detect_threshold * spike_firing_rate) < bt_spike_firing_rate and bt_spike_firing_rate > (detect_threshold * qmax):
-            return {spike: int((sampling_freq * stim_start_time) + (spike_idx - sampling_freq))}
+#         if (detect_threshold * spike_firing_rate) < bt_spike_firing_rate and bt_spike_firing_rate > (detect_threshold * qmax):
+#             return {spike: int((sampling_freq * stim_start_time) + (spike_idx - sampling_freq))}
     
-    return None
+#     return None
 
 
-def gen_ts_grid(f, conf_dir, output_dir, grid_type = 'ts'):
+# def gen_ts_grid(f, conf_dir, output_dir, grid_type = 'ts'):
     
-    with open(f, 'r') as F: # read in template conf for param_value data
-        conf_txt = F.readlines()
+#     with open(f, 'r') as F: # read in template conf for param_value data
+#         conf_txt = F.readlines()
         
-    con_num = param_value('Coupling:', conf_txt)[1]
+#     con_num = param_value('Coupling:', conf_txt)[1]
     
-    ppb_size = 8
-    osc_size = 10
+#     ppb_size = 8
+#     osc_size = 10
 
-    fig, ax = plt.subplots(figsize = (50, 30), 
-                           ncols = ppb_size, 
-                           nrows = osc_size)
+#     fig, ax = plt.subplots(figsize = (50, 30), 
+#                            ncols = ppb_size, 
+#                            nrows = osc_size)
     
-    sampling_freq =  1 / float(param_value('Interval:', conf_txt)[1])
-    stim_onset = float(param_value('Onset:', conf_txt, instance_guide = 'TBS')[1])
-    stim_duration = float(param_value('Duration:', conf_txt)[1])
-    on_time = float(param_value('On:', conf_txt)[1])
-    off_time = float(param_value('Off:', conf_txt)[1])
+#     sampling_freq =  1 / float(param_value('Interval:', conf_txt)[1])
+#     stim_onset = float(param_value('Onset:', conf_txt, instance_guide = 'TBS')[1])
+#     stim_duration = float(param_value('Duration:', conf_txt)[1])
+#     on_time = float(param_value('On:', conf_txt)[1])
+#     off_time = float(param_value('Off:', conf_txt)[1])
     
-    if grid_type == 'ts': grid_fields = [f'coupling.{con_num}.nutilde', f'coupling.{con_num}.nu']
-    elif grid_type == 'psd': grid_fields = [f'pop.{con_num}.v']
+#     if grid_type == 'ts': grid_fields = [f'coupling.{con_num}.nutilde', f'coupling.{con_num}.nu']
+#     elif grid_type == 'psd': grid_fields = [f'pop.{con_num}.v']
 
-    output_dicts = read_outputs(f, conf_dir, output_dir, grid_fields)
+#     output_dicts = read_outputs(f, conf_dir, output_dir, grid_fields)
 
-    for output_name, output_dict in output_dicts.items(): # for output name (should be 80 objects)
-        ts_df = pd.DataFrame()
-        for field, ts in output_dict.items():
-            ts_df[field] = ts.iloc[:, 0]
+#     for output_name, output_dict in output_dicts.items(): # for output name (should be 80 objects)
+#         ts_df = pd.DataFrame()
+#         for field, ts in output_dict.items():
+#             ts_df[field] = ts.iloc[:, 0]
 
-        print(ts_df)
-        ppb = output_name.split('ppb')[1].split('_')[0]
-        osc = output_name.split('osc')[1].split('_')[0]
-        print()
-        print(f'ppb: {ppb}')
-        print(f'osc: {osc}')
+#         print(ts_df)
+#         ppb = output_name.split('ppb')[1].split('_')[0]
+#         osc = output_name.split('osc')[1].split('_')[0]
+#         print()
+#         print(f'ppb: {ppb}')
+#         print(f'osc: {osc}')
 
-        ax_item = ax[(osc_size - 1) - (int(osc) - 1), int(ppb) - 1]
-
-
-        if grid_type == 'ts':
-            ax_item.plot(ts_df)
-
-            num_pulses_given = 600
-            time600 = round(num_pulses_given*(on_time+off_time)/(int(osc)*int(ppb)*on_time), 2)
-            print(time600)
-            index_to_look = int(time600 + int(stim_onset))
-            ax_item.axvline(index_to_look, linestyle = '--', c = 'purple')
+#         ax_item = ax[(osc_size - 1) - (int(osc) - 1), int(ppb) - 1]
 
 
-            start_val = float(ts_df[f'coupling.{con_num}.nutilde'].iloc[0])
+#         if grid_type == 'ts':
+#             ax_item.plot(ts_df)
 
-            if index_to_look > float(ts_df[f'coupling.{con_num}.nutilde'].index[-1]): end_val = None
-            else: end_val = float(ts_df[f'coupling.{con_num}.nutilde'].loc[index_to_look])               
+#             num_pulses_given = 600
+#             time600 = round(num_pulses_given*(on_time+off_time)/(int(osc)*int(ppb)*on_time), 2)
+#             print(time600)
+#             index_to_look = int(time600 + int(stim_onset))
+#             ax_item.axvline(index_to_look, linestyle = '--', c = 'purple')
 
 
-            if end_val == None:
-                diff = 'Out of range'
-            else: 
-                diff = f'{(end_val - start_val) / start_val:.2%}'
+#             start_val = float(ts_df[f'coupling.{con_num}.nutilde'].iloc[0])
 
-            ax_item.text(600, start_val, diff)
-            print(diff)
+#             if index_to_look > float(ts_df[f'coupling.{con_num}.nutilde'].index[-1]): end_val = None
+#             else: end_val = float(ts_df[f'coupling.{con_num}.nutilde'].loc[index_to_look])               
+
+
+#             if end_val == None:
+#                 diff = 'Out of range'
+#             else: 
+#                 diff = f'{(end_val - start_val) / start_val:.2%}'
+
+#             ax_item.text(600, start_val, diff)
+#             print(diff)
             
-        elif grid_type == 'psd':
-            ## WHEN forwarding a ts for psd plotting, make sure the specific column is grabbed, not the entire df that contains 1 column
-            voltage = ts_df[f'pop.{con_num}.v']
+#         elif grid_type == 'psd':
+#             ## WHEN forwarding a ts for psd plotting, make sure the specific column is grabbed, not the entire df that contains 1 column
+#             voltage = ts_df[f'pop.{con_num}.v']
 
-            ts_pre_stim = voltage[:int(stim_onset)]
-            ts_post_stim = voltage[int(stim_onset) + int(stim_duration) + 5:]
+#             ts_pre_stim = voltage[:int(stim_onset)]
+#             ts_post_stim = voltage[int(stim_onset) + int(stim_duration) + 5:]
 
 
-            for window, clr in zip([ts_pre_stim, ts_post_stim], ['dodgerblue', 'blueviolet']):
-                valu = np.array(window)
-                freqs, mypsd = welch(valu, fs = sampling_freq)
+#             for window, clr in zip([ts_pre_stim, ts_post_stim], ['dodgerblue', 'blueviolet']):
+#                 valu = np.array(window)
+#                 freqs, mypsd = welch(valu, fs = sampling_freq)
                 
-                ax_item.plot(freqs, mypsd, color = clr)
+#                 ax_item.plot(freqs, mypsd, color = clr)
 
-            ax_item.set_xscale('log')
-            ax_item.set_yscale('log')
+#             ax_item.set_xscale('log')
+#             ax_item.set_yscale('log')
                 
-        ax_item.set_title(f'Pulses/Burst: {ppb}, Theta: {osc} Hz')
+#         ax_item.set_title(f'Pulses/Burst: {ppb}, Theta: {osc} Hz')
 
-    plt.tight_layout()
+#     plt.tight_layout()
 
-    if not os.path.exists(os.getcwd() + '/grids/'):
-        os.makedirs(os.getcwd() + '/grids/')
+#     if not os.path.exists(os.getcwd() + '/grids/'):
+#         os.makedirs(os.getcwd() + '/grids/')
 
-    plt.savefig(os.getcwd() + '/grids/' + f.split('.')[0] + f'_{grid_type}_grid.png')
-
-
-def PSD(signal, sampling_freq, normalize = False):
-    
-    freqs, power = welch(signal.values.reshape(len(signal)), fs = sampling_freq, nperseg = sampling_freq*5)
-    
-    welch_df = pd.DataFrame({'power': power}, index = freqs) # power value at each frequency biny
-    welch_df.index.names = ['freq_bins'] # frequency bins
- 
-    if normalize:
-        normalized_PSD = welch_df.copy()
-        total_power = normalized_PSD['power'].sum()
-        normalized_PSD['power'] = normalized_PSD['power'] / total_power
-    
-        return normalized_PSD
-    
-    return welch_df
-    
-    
-def pre_post_PSD(pre_signal, post_signal, sampling_freq, normalize = False):
-    """
-    pre_signal
-    post_signal
-    
-    sampling_freq
-    
-    returns:
-        pre-post PSD dataframe, with index values representing frequency bins and column values representing signal power within each
-    """
-
-    pre_signal_psd = PSD(pre_signal, sampling_freq, normalize).rename(columns={'power': 'pre_power'})
-    post_signal_psd = PSD(post_signal, sampling_freq, normalize).rename(columns={'power': 'post_power'})
-    
-    pre_post_df = pd.concat([pre_signal_psd, post_signal_psd], axis=1)
-    
-    return pre_post_df
-    
-
-def PSD_power_delta(pre_signal,
-                    post_signal,
-                    sampling_freq,
-                    
-                    bin_min = 8, # minimum frequency range
-                    bin_max = 13, # maximum frequency range to examine PSD power AUC
-                    
-                    normalize = False,
-                    fooof_correct = False):
-    """
-    eirs_signal: Takes a pandas dataframe/series containing a series to compare pre-post AUC power (ex. pop.1.v, propagator.1.phi)
-    """
-    
-    welch_df = pre_post_PSD(pre_signal, post_signal, sampling_freq, normalize)
-    
-    # PSD with FOOOF 1/f correction
-    if fooof_correct:
-        bins = np.array(welch_df.index)
-
-        pre_spectrum = welch_df[['pre_power']].values.flatten()
-        post_spectrum = welch_df[['post_power']].values.flatten()
-
-        freq_range = [bins.min(), bins.max()]
-
-        fm = FOOOF(aperiodic_mode='knee', verbose = False)
-
-        fm.fit(bins, pre_spectrum, freq_range)
-        pre_fooof = fm.get_params('peak_params')
-
-        fm.fit(bins, post_spectrum, freq_range)
-        post_fooof = fm.get_params('peak_params')
-
-#         alpha_freq = int(input('YOU NEED TO CHOOSE THE CENTRAL FREQ TO CHOOSE WHICH PEAK SHOULD BE EXAMIND'))
-        alpha_freq = 10
-    
-        pre_pwr = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[1]
-        post_pwr = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[1]
-        
-#         pre_lower_bound = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] - 2
-#         pre_upper_bound = min(pre_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] + 2
-        
-#         post_lower_bound = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] - 2
-#         post_upper_bound = min(post_fooof, key = lambda x: min(abs(i-alpha_freq) for i in x))[0] + 2
-
-
-        FOOOF_AUC_diff = (pre_pwr-post_pwr)/(pre_pwr)
-        
-        return FOOOF_AUC_diff
-    
-    
-    pre_stim_alpha_bins = welch_df['pre_power'][bin_min:bin_max]
-    post_stim_alpha_bins = welch_df['post_power'][bin_min:bin_max]
-    
-    pre_alpha_auc = np.trapz(pre_stim_alpha_bins)
-    post_alpha_auc = np.trapz(post_stim_alpha_bins)
-    
-    AUC_perc_delta = (pre_alpha_auc-post_alpha_auc)/pre_alpha_auc
-    
-    return AUC_perc_delta
-
-
-def graph_PSD_delta(pre_signal, 
-                    post_signal,
-                    sampling_freq, 
-                    normalize = False):
-    """
-    Argument:
-        eirs_grid multi-index dataframe
-    
-    Plots interact_manual PSD graph for jupyter notebook
-    """
-    welch_df = pre_post_PSD(pre_signal, post_signal, sampling_freq, normalize)
-
-    psd_fig, psd_ax = plt.subplots(figsize = (20,10))
-
-    welch_df['pre_power'].plot(ax=psd_ax, logx = False, logy=True, c='black', label = 'Pre-stim Voltage', linewidth = 4, linestyle='--')
-    welch_df['post_power'].plot(ax=psd_ax,logx = False, logy=True, c='indigo', label = 'Post-stim Voltage', linewidth = 4)
-
-    psd_ax.axvspan(8, 
-        13, 
-        color = 'pink',
-        alpha = .5) 
-
-
-    plt.xticks(fontsize = 15)
-    plt.yticks(fontsize = 15)
-
-    psd_ax.set_ylabel('Spectral Power [$V^2$/Hz]', fontsize = 30)
-    psd_ax.set_xlabel('Frequencies [Hz]', fontsize = 30)
-#     psd_ax.set_title(f'Pre vs. Post Stimulation Population Voltage PSD | bur={ppb}, osc={osc}', fontsize = 30)
-    psd_ax.tick_params(axis='both', which='major', labelsize=20)
-    psd_ax.set_xscale('log', base = 10)
-
-    psd_ax.legend()
-    plt.show()
+#     plt.savefig(os.getcwd() + '/grids/' + f.split('.')[0] + f'_{grid_type}_grid.png')

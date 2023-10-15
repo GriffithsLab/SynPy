@@ -1,14 +1,17 @@
 import os
+import numpy as np
+from itertools import product
 from .nftsim_generator_FUNCTIONS import (
     param_value, 
     update_param, 
-    generate_permutations, 
     tbs_pulse_time, 
     save_confs, 
-    nftsim_run
+    nftsim_run,
+    protocol_params
 )
 from .output_handler import dot_output
 from .batch_jobs import gen_outputs
+from .param_space import valid_iTBS_protocols
 
 class dot_conf:
     def __init__(self, conf_path):
@@ -19,8 +22,40 @@ class dot_conf:
         
         with open(self.conf_path, 'r') as f:
             self.conf_text = f.readlines()
+            
+            
+    def generate_permutations(self, loop_dict):
+        """
+        Takes a dictionary object with the name of the parameter being manipulated as the key, and the [start, stop, stepsize] list
+        as the corresponding value.
+        Ex.
+        {'ppb': [1, 20, .25],
+         'osc': [1, 20, .25],
+         'amp': [70, 120, 5]}
 
-    def gen_confs(self, perm_dict, new_conf_dir, params = {}, dynamic_dose = None, write_confs = True):
+
+        Returns a list containing tuple objects of each unique permutation.
+        Ex.
+        [(1, 1.0, 70),
+         (1, 1.0, 75),
+         (1, 1.0, 80),
+         ...]
+        """
+        # Generate a list of loop ranges
+        loop_ranges = [np.arange(start, stop + step, step) for loop_name, [start, stop, step] in loop_dict.items()]
+
+        # Use the product function from the itertools module
+        # to generate all permutations of the loop ranges
+        perm_list = product(*loop_ranges)
+
+        # Capture each unique permutation in a list
+        all_permutations =  [perm for perm in perm_list]
+
+        # Return all unique permutations
+        return all_permutations
+
+
+    def gen_confs(self, perm_dict, new_conf_dir, params = {}, dynamic_dose = None, filtered_perms = True, write_confs = True):
         """
         perm_dict -- Dictionary object containing n parameters and their corresponding value ranges to generate permuations for.
                      Formatted as {'PARAMETER NAME' : [LOWEST VALUE, HIGHEST VALUE, STEP SIZE]}
@@ -42,8 +77,12 @@ class dot_conf:
 
         new_confs = {} # will take the format {f_name : conf_txt}
 
-        perms = generate_permutations(perm_dict) # list of all unique parameter permutations from perm_dict
+        perms = self.generate_permutations(perm_dict) # list of all unique parameter permutations from perm_dict
         keywords = list(perm_dict.keys())
+        
+        if filtered_perms: # Only generates confs based on if the parameter combination is present within the valid_iTBS_protocols set
+            valid_param_combos = [tuple(map(float, p_combo)) for p_combo in (protocol_params(p).values() for p in valid_iTBS_protocols())]
+            perms = [filtered_perm for filtered_perm in perms if filtered_perm in valid_param_combos]
 
         for perm in perms:
 
@@ -89,7 +128,8 @@ class dot_conf:
     def grid_outputs(self, perm_dict, new_conf_dir, new_output_dir, params = {}, 
                      
                      dynamic_dose = None, 
-                     batch = True, 
+                     batch = True,
+                     filtered_perms = True
                      nft_path = 'nftsim/bin/nftsim'):
         """
         Given a conf file path, a permutation dictionary, and new conf/output directory names, creates and writes each permutation 
@@ -110,20 +150,11 @@ class dot_conf:
             If False, individually processes each .conf file through NFTsim.
         """
 
-        grid_points = self.gen_confs(perm_dict, new_conf_dir, params, dynamic_dose)
+        grid_points = self.gen_confs(perm_dict, new_conf_dir, params, dynamic_dose, filtered_perms)
 
         gen_outputs(new_conf_dir, new_output_dir, batch, nft_path)
 
         print('Jobs submitted.')
-        # Detect when the number of files in the output dir are equal to the total files generated
-#         while True:
-#             num_outputs = len(list_files(new_output_dir, extension_filter = '.output'))
-#             if num_outputs >= grid_points:
-#                 print(f'All {num_outputs} files written to {new_output_dir}')
-#                 break
-#             else:
-#                 print(f'{int(num_outputs)}/{int(grid_points)} files')
-#                 time.sleep(10)
                 
     def run(self, conf_dir = 'confs/', output_dir = 'outputs/', params = {},
             gains = False, # return CT gain values instead of individual fields

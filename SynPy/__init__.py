@@ -8,5 +8,6 @@ sys.path.append('nftsim/') # Add nftsim package to path
 
 # Local functions; allows sp.FUNCTION commands to be made
 from .nftsim_generator_FUNCTIONS import *
+from .spectra_functions import *
 from .conf_handler import *
 from .output_handler import *
