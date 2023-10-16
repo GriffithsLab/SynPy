@@ -11,8 +11,14 @@ output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 
 pkl = "xyz_gain_dict_600-3000.pkl"
 
+pulse_dose_range = {'start' : 1100,
+                    'stop' : 1140,
+                    'step' : 20}
 
-for dose in range(1100, 1140 + 20, 20):
+for dose in range(pulse_dose_range['start'], 
+                  pulse_dose_range['stop'] + pulse_dose_range['step'], 
+                  pulse_dose_range['step']):
+    
     grid_dir_name = f'bursts_oscillation_{dose}'
     new_conf_dir = os.path.join(conf_dir, grid_dir_name)
     new_output_dir = os.path.join(output_dir, grid_dir_name)
@@ -20,6 +26,7 @@ for dose in range(1100, 1140 + 20, 20):
     # Run 
     params = { # Replaces each dictionary key with the corresponding value in the .conf
         'Onset:': 150,
+        'Interval' : 1e-2
     }
 
     perm_dict = {
@@ -48,7 +55,7 @@ for dose in range(1100, 1140 + 20, 20):
     with open(pkl, 'rb') as file:
         xyz_gain_dict = pickle.load(file)
 
-    xyz_gain_dict[grid_dir_name] = sp.perm_load(new_output_dir).perm_df()
+    xyz_gain_dict[grid_dir_name] = sp.perm_load(new_output_dir).perm_df(load_type = 'parallel')
 
     # Open the same file in binary write mode to save the modified data
     with open(pkl, 'wb') as file:

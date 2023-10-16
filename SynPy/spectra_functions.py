@@ -62,7 +62,7 @@ class PSD:
     
     def fm_peak_params(self, target_peak = 'all', peak_param = 'all'):    
         peak_columns = ['CF', 'PW', 'BW']
-        peaks_df = pd.DataFrame(self.fm.peak_params_, columns = peak_columns)
+        peaks_df = pd.DataFrame(self.fm().peak_params_, columns = peak_columns)
         
         if target_peak == 'all':
             return peaks_df

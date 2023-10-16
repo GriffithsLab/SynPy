@@ -20,8 +20,7 @@ class perm_load:
         if len(self.output_files) < 1:
             raise Exception('Directory path contains no files.')
 
-        self.output_files = [op for op in self.output_files if os.path.basename(op) in valid_iTBS_protocols()] # permuations with physiological valid protocols 
-
+        self.output_files = [op for op in self.output_files]# if os.path.basename(op) in valid_iTBS_protocols()]
         
     def __call__(self, load_type = 'parallel'):
         return self.perm_df(load_type)
@@ -31,9 +30,9 @@ class perm_load:
         load_type ('parallel' [default], 'serial'): Parallelized or serialized .output file loading into df.
         """
         if load_type == 'parallel':
-            df_dict = parallel_load(self.output_files)
+            df_dict = self.parallel_load()
         elif load_type == 'serial':
-            df_dict = serialized_load(self.output_files)
+            df_dict = self.serialized_load()
         else:
             raise Exception('load_type must be either "parallel" or "serial".')
 
@@ -49,7 +48,6 @@ class perm_load:
             df_dict[output_file] = self.df_row_builder(output_file, df_dict)
 
         return df_dict
-
 
     # Function to parallelize the loading process
     def parallel_load(self):
@@ -77,35 +75,16 @@ class perm_load:
 
         return df_dict
     
-    def _construct_perm_df(self, df_dict):
-        """
-        Construct perm_df from df_dict.  Adds permutation parameters as df column values and sorts frame.
-        """
-        # Convert the dictionary, whose entries are rows of values, to a DataFrame
-        perm_df = pd.DataFrame.from_dict(df_dict, orient='index')
-        
-        # Extract parameter values contained within perm_df indicies and add each as a column value in the df
-        protocol_params = {i: protocol_params(i) for i in perm_df.index}
-        for idx, param in protocol_params.items():
-            for param_name, param_val in param.items():
-                perm_df.loc[idx, f'PARAM_{param_name}'] = float(param_val)
-
-        perm_df['train_dose'] = tbs_train_dose(pulses_per_burst = perm_df['PARAM_bur'], inter_burst_freq = perm_df['PARAM_osc'])
-
-        num_params = len(next(iter(protocol_params.values())))
-        return perm_df.sort_values(by = list(perm_df.columns[-num_params:]), ascending = [True] * num_params)
-         
-        
-    def df_row_builder(output_file, df_dict):
+#     @staticmethod
+    def df_row_builder(self, output_file, df_dict):
         """
         For each process, either loaded in a parallized or serialized manner, construct a dataframe for a .output file permutation.
         """
 
         try:
-            output = sp.dot_output(output_file)
+            output = dot_output(output_file)
 
             numerical = output.df(gains=False)
-        #     numerical_normalize = output.df(gains=False, normalize = True)
             gains = output.df(gains=True)
 
             row = gains.loc[output.time - 10:output.time].mean() # grab average gain from last 10 seconds (post-stim) simulation
@@ -124,8 +103,7 @@ class perm_load:
                 pre_stim['pop.e.v'],
                 post_stim['pop.e.v'],
                 output.sampling_rate,
-                bin_min = 1,
-                bin_max = 50
+                target_peak = 'broadband',
             )
 
             row['alpha_CF'] = float(PSD(
@@ -170,3 +148,23 @@ class perm_load:
 
         except Exception as e:
             print(e)  # Print the exception message
+
+    def _construct_perm_df(self, df_dict):
+        """
+        Construct perm_df from df_dict.  Adds permutation parameters as df column values and sorts frame.
+        """
+        
+        # Convert the dictionary, whose entries are rows of values, to a DataFrame
+        perm_df = pd.DataFrame.from_dict(df_dict, orient='index')
+        
+        # Extract parameter values contained within perm_df indicies and add each as a column value in the df
+        protocol_idx = {i: protocol_params(i) for i in perm_df.index}
+        for idx, param in protocol_idx.items():
+            for param_name, param_val in param.items():
+                perm_df[idx, f'PARAM_{param_name}'] = float(param_val)
+                
+        perm_df['train_dose'] = tbs_train_dose(pulses_per_burst = perm_df['PARAM_bur'], 
+                                               inter_burst_freq = perm_df['PARAM_osc'])
+    
+        num_params = len(next(iter(protocol_idx.values())))
+        return perm_df.sort_values(by = list(perm_df.columns[-num_params:]), ascending = [True] * num_params)
