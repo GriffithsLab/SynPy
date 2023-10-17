@@ -12,8 +12,10 @@ output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 pkl = "xyz_gain_dict_600-3000.pkl"
 
 pulse_dose_range = {'start' : 1100,
-                    'stop' : 1140,
+                    'stop' : 1100,
                     'step' : 20}
+
+purge = False
 
 for dose in range(pulse_dose_range['start'], 
                   pulse_dose_range['stop'] + pulse_dose_range['step'], 
@@ -22,6 +24,10 @@ for dose in range(pulse_dose_range['start'],
     grid_dir_name = f'bursts_oscillation_{dose}'
     new_conf_dir = os.path.join(conf_dir, grid_dir_name)
     new_output_dir = os.path.join(output_dir, grid_dir_name)
+
+    if purge:
+        shutil.rmtree(new_conf_dir)
+        shutil.rmtree(new_output_dir)
 
     # Run 
     params = { # Replaces each dictionary key with the corresponding value in the .conf
@@ -64,6 +70,6 @@ for dose in range(pulse_dose_range['start'],
 
     shutil.rmtree(new_conf_dir)
     shutil.rmtree(new_output_dir)
-    
+
     
     

@@ -1,4 +1,6 @@
 import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import multiprocessing as mp
 import fnmatch
 from tqdm import tqdm
@@ -48,18 +50,19 @@ class perm_load:
             df_dict[output_file] = self.df_row_builder(output_file, df_dict)
 
         return df_dict
-
+    
     # Function to parallelize the loading process
     def parallel_load(self):
         """
         Use multiprocesses to parallelize generating dataframe rows.
         """
         print('Parallelized loading...')
+        
         manager = mp.Manager()
         df_dict = manager.dict() # Dictionary that gets shared among the multiprocess
 
-        # Create a process pool with the number of available CPU cores
-        pool = mp.Pool() # 'processes' argument may be passed if loading hits memory limit
+        # Create a thread pool with a reduced number of threads
+        pool = mp.Pool(processes = 20) # 'processes' argument may be passed if loading hits memory limit
 
         with tqdm(total=len(self.output_files)) as pbar: # Use tqdm to track the progress of the parallel loading
             def update_pbar(_): # Helper function to update the tqdm progress bar
@@ -75,7 +78,6 @@ class perm_load:
 
         return df_dict
     
-#     @staticmethod
     def df_row_builder(self, output_file, df_dict):
         """
         For each process, either loaded in a parallized or serialized manner, construct a dataframe for a .output file permutation.
@@ -85,13 +87,15 @@ class perm_load:
             output = dot_output(output_file)
 
             numerical = output.df(gains=False)
+            pre_stim = numerical.loc[:output.stim_onset - 10]
+            post_stim = numerical.loc[output.stim_onset + output.stim_duration + 110:]
+            
             gains = output.df(gains=True)
+            pre_gains = gains.loc[:output.stim_onset - 10].mean()
+            post_gains = gains.loc[output.time - 10:output.time].mean()
 
             row = gains.loc[output.time - 10:output.time].mean() # grab average gain from last 10 seconds (post-stim) simulation
             row.name = output.f_name
-
-            pre_stim = numerical.loc[:output.stim_onset - 10]
-            post_stim = numerical.loc[output.stim_onset + output.stim_duration + 110:]
 
         except Exception as e:
             print(e)  # Print the exception message
@@ -132,17 +136,6 @@ class perm_load:
             for idx, gain in gains_delta.iteritems():
                 row[f'delta_{idx}'] = gain
 
-#             xyz_cols = [c for c in pre_stim.columns if c in ('X', 'Y', 'Z')]
-#             pre_xyz
-#             post_xyz
-
-
-    #         row['nu_ts'] = numerical_normalize[cols][output.stim_onset:output.stim_onset + output.stim_duration]
-
-    #         itbs = numerical['pop.x.q'][int(output.stim_onset):int(output.stim_onset + output.stim_duration)]
-    #         row['itbs'] = itbs.values
-    #         row['itbs_psd'] = sp.PSD(itbs, output.sampling_rate).values
-
 
             df_dict[row.name] = row
 
@@ -156,15 +149,17 @@ class perm_load:
         
         # Convert the dictionary, whose entries are rows of values, to a DataFrame
         perm_df = pd.DataFrame.from_dict(df_dict, orient='index')
+        print(perm_df)
         
         # Extract parameter values contained within perm_df indicies and add each as a column value in the df
-        protocol_idx = {i: protocol_params(i) for i in perm_df.index}
-        for idx, param in protocol_idx.items():
+        tbs_protocol_params = {idx: protocol_params(idx) for idx in perm_df.index}
+        for idx, param in tbs_protocol_params.items():
             for param_name, param_val in param.items():
-                perm_df[idx, f'PARAM_{param_name}'] = float(param_val)
+                perm_df.loc[idx, f'PARAM_{param_name}'] = float(param_val)
                 
         perm_df['train_dose'] = tbs_train_dose(pulses_per_burst = perm_df['PARAM_bur'], 
                                                inter_burst_freq = perm_df['PARAM_osc'])
     
-        num_params = len(next(iter(protocol_idx.values())))
+        num_params = len(next(iter(tbs_protocol_params.values())))
+        
         return perm_df.sort_values(by = list(perm_df.columns[-num_params:]), ascending = [True] * num_params)
