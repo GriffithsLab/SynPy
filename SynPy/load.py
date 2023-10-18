@@ -23,16 +23,13 @@ class perm_load:
             raise Exception('Directory path contains no files.')
 
         self.output_files = [op for op in self.output_files]# if os.path.basename(op) in valid_iTBS_protocols()]
-        
-    def __call__(self, load_type = 'parallel'):
-        return self.perm_df(load_type)
     
-    def perm_df(self, load_type = 'parallel'):
+    def perm_df(self, load_type = 'parallel', threads = min(40, os.cpu_count())):
         """
         load_type ('parallel' [default], 'serial'): Parallelized or serialized .output file loading into df.
         """
         if load_type == 'parallel':
-            df_dict = self.parallel_load()
+            df_dict = self.parallel_load(threads)
         elif load_type == 'serial':
             df_dict = self.serialized_load()
         else:
@@ -52,7 +49,7 @@ class perm_load:
         return df_dict
     
     # Function to parallelize the loading process
-    def parallel_load(self):
+    def parallel_load(self, threads):
         """
         Use multiprocesses to parallelize generating dataframe rows.
         """
@@ -62,7 +59,7 @@ class perm_load:
         df_dict = manager.dict() # Dictionary that gets shared among the multiprocess
 
         # Create a thread pool with a reduced number of threads
-        pool = mp.Pool(processes = 20) # 'processes' argument may be passed if loading hits memory limit
+        pool = mp.Pool(processes = threads) # 'processes' argument may be passed if loading hits memory limit
 
         with tqdm(total=len(self.output_files)) as pbar: # Use tqdm to track the progress of the parallel loading
             def update_pbar(_): # Helper function to update the tqdm progress bar
@@ -149,7 +146,6 @@ class perm_load:
         
         # Convert the dictionary, whose entries are rows of values, to a DataFrame
         perm_df = pd.DataFrame.from_dict(df_dict, orient='index')
-        print(perm_df)
         
         # Extract parameter values contained within perm_df indicies and add each as a column value in the df
         tbs_protocol_params = {idx: protocol_params(idx) for idx in perm_df.index}

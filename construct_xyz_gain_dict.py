@@ -1,5 +1,7 @@
 import SynPy as sp
 import os
+os.environ['OMP_NUM_THREADS'] = '1'
+# os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 import time
 import pickle
@@ -11,11 +13,11 @@ output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 
 pkl = "xyz_gain_dict_600-3000.pkl"
 
-pulse_dose_range = {'start' : 1100,
-                    'stop' : 1100,
+pulse_dose_range = {'start' : 600,
+                    'stop' : 600,
                     'step' : 20}
 
-purge = False
+purge = True
 
 for dose in range(pulse_dose_range['start'], 
                   pulse_dose_range['stop'] + pulse_dose_range['step'], 
@@ -26,8 +28,10 @@ for dose in range(pulse_dose_range['start'],
     new_output_dir = os.path.join(output_dir, grid_dir_name)
 
     if purge:
-        shutil.rmtree(new_conf_dir)
-        shutil.rmtree(new_output_dir)
+        if os.path.exists(new_conf_dir):
+            shutil.rmtree(new_conf_dir)
+        if os.path.exists(new_output_dir):
+            shutil.rmtree(new_output_dir)
 
     # Run 
     params = { # Replaces each dictionary key with the corresponding value in the .conf
@@ -61,7 +65,8 @@ for dose in range(pulse_dose_range['start'],
     with open(pkl, 'rb') as file:
         xyz_gain_dict = pickle.load(file)
 
-    xyz_gain_dict[grid_dir_name] = sp.perm_load(new_output_dir).perm_df(load_type = 'parallel')
+    xyz_gain_dict[grid_dir_name] = sp.perm_load(new_output_dir).perm_df(load_type = 'parallel', 
+                                                                        threads = 2)
 
     # Open the same file in binary write mode to save the modified data
     with open(pkl, 'wb') as file:
