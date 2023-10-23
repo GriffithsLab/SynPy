@@ -1,7 +1,6 @@
-import SynPy as sp
 import os
-os.environ['OMP_NUM_THREADS'] = '1'
-# os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1' # os and this line need to be imported before *any* other packages, including SynPy
+import SynPy as sp
 import numpy as np
 import time
 import pickle
@@ -13,8 +12,8 @@ output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 
 pkl = "xyz_gain_dict_600-3000.pkl"
 
-pulse_dose_range = {'start' : 600,
-                    'stop' : 600,
+pulse_dose_range = {'start' : 620,
+                    'stop' : 620,
                     'step' : 20}
 
 purge = True
@@ -66,7 +65,7 @@ for dose in range(pulse_dose_range['start'],
         xyz_gain_dict = pickle.load(file)
 
     xyz_gain_dict[grid_dir_name] = sp.perm_load(new_output_dir).perm_df(load_type = 'parallel', 
-                                                                        threads = 2)
+                                                                        threads = 20)
 
     # Open the same file in binary write mode to save the modified data
     with open(pkl, 'wb') as file:

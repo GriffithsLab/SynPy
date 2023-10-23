@@ -1,6 +1,4 @@
 import os
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import multiprocessing as mp
 import fnmatch
 from tqdm import tqdm
@@ -95,7 +93,8 @@ class perm_load:
             row.name = output.f_name
 
         except Exception as e:
-            print(e)  # Print the exception message
+#             print(e)  # Print the exception message
+            print(f"On line {sys.exc_info()[-1].tb_lineno}, df_row_builder (.output loading) Exception error:\n {e}")
 
 
         try:
@@ -137,7 +136,8 @@ class perm_load:
             df_dict[row.name] = row
 
         except Exception as e:
-            print(e)  # Print the exception message
+#             print(e)  # Print the exception message
+            print(f"On line {sys.exc_info()[-1].tb_lineno}, df_row_builder (.output loading) Exception error:\n {e}")
 
     def _construct_perm_df(self, df_dict):
         """
