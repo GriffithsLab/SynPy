@@ -7,10 +7,10 @@ def gen_outputs(conf_dir, output_dir, batch, nft_path, n_tasks_per_job = 40):
     """
     Given a directory containing .conf files, will write and submit batch jobs to parallelize .output file generation.
     """
-    
 
     conf_files = list_files(conf_dir, full_path = True, extension_filter = '.conf')
     if not os.path.exists(output_dir): os.makedirs(output_dir)
+        
           
     if batch:
         unique_jobs = {}
@@ -26,6 +26,8 @@ def gen_outputs(conf_dir, output_dir, batch, nft_path, n_tasks_per_job = 40):
                 output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')
                 
                 nftsim_job_lines.append(f'  {nft_path} -i {conf_file} -o {output_file}')
+            
+            job_script_path = os.path.join(conf_dir, job_submit_file)
             
             newline_str = '\n'
 
@@ -48,8 +50,11 @@ module load gcc/9.4.0
 parallel --joblog job.log -j $SLURM_TASKS_PER_NODE <<EOF
 {newline_str.join(nftsim_job_lines)}
 EOF
+
+# Proceed only once the job has concluded processing, opening, writing, and closing all files; mitigates race conditions
+#SBATCH --dependency=afterok:$SLURM_JOB_ID {job_script_path}
+echo -n "$SLURM_JOB_ID done" >> {os.path.join(output_dir, job_name + '_done.txt')}
             """
-            job_script_path = os.path.join(conf_dir, job_submit_file)
             open(job_script_path, 'w+').write(slurm_job_script)
             cmdstr = f'sbatch {job_script_path}'
             
@@ -59,7 +64,9 @@ EOF
             else:
                 print(f'{cmdstr} failed with return code {subproc.returncode}') # error 127 = ssh into a compute (non-login) node
                 sys.exit()
-            
+
+        return len(unique_jobs) # return the total number of unique jobs
+    
     elif batch == False:
         for conf_file in conf_files:
             output_file = conf_file.replace(conf_dir, output_dir).replace('.conf', '.output')

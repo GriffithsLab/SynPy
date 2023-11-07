@@ -1,5 +1,6 @@
 import os
 import multiprocessing as mp
+import traceback
 import fnmatch
 from tqdm import tqdm
 import pandas as pd
@@ -47,6 +48,32 @@ class perm_load:
         return df_dict
     
     # Function to parallelize the loading process
+#     def parallel_load(self, threads):
+#         """
+#         Use multiprocesses to parallelize generating dataframe rows.
+#         """
+#         print('Parallelized loading...')
+        
+#         manager = mp.Manager()
+#         df_dict = manager.dict() # Dictionary that gets shared among the multiprocess
+
+#         # Create a thread pool with a reduced number of threads
+#         pool = mp.Pool(processes = threads) # 'processes' argument may be passed if loading hits memory limit
+
+#         with tqdm(total=len(self.output_files)) as pbar: # Use tqdm to track the progress of the parallel loading
+#             def update_pbar(_): # Helper function to update the tqdm progress bar
+#                 pbar.update(1)
+
+#             # Apply the paralloader function to each output file in parallel
+#             for output_file in self.output_files:
+#                 pool.apply_async(self.df_row_builder, args=(output_file, df_dict), callback=update_pbar)
+
+#             # Close the pool
+#             pool.close()
+#             pool.join()
+
+#         return df_dict
+
     def parallel_load(self, threads):
         """
         Use multiprocesses to parallelize generating dataframe rows.
@@ -56,22 +83,42 @@ class perm_load:
         manager = mp.Manager()
         df_dict = manager.dict() # Dictionary that gets shared among the multiprocess
 
-        # Create a thread pool with a reduced number of threads
-        pool = mp.Pool(processes = threads) # 'processes' argument may be passed if loading hits memory limit
+        # Create a process pool with a reduced number of processes
+        pool = mp.Pool(processes = threads)
 
         with tqdm(total=len(self.output_files)) as pbar: # Use tqdm to track the progress of the parallel loading
             def update_pbar(_): # Helper function to update the tqdm progress bar
                 pbar.update(1)
 
-            # Apply the paralloader function to each output file in parallel
-            for output_file in self.output_files:
-                pool.apply_async(self.df_row_builder, args=(output_file, df_dict), callback=update_pbar)
+#             def apply_row_builder(output_file):
+#                 return self.df_row_builder(output_file, df_dict)
 
-            # Close the pool
+            results = []
+            for output_file in self.output_files:
+                result = pool.apply_async(self.df_row_builder, args=(output_file, df_dict), callback=update_pbar)
+                results.append(result)
+
+            # Close the pool and wait for all tasks to complete
             pool.close()
             pool.join()
 
+        # Collect results
+        for result in results:
+            try:
+                result.get()
+            except Exception as e:
+                traceback.print_exc()
+                print()
+
         return df_dict
+
+#     @staticmethod
+#     def apply_row_builder(output_file, df_dict):
+#         try:
+#             self.df_row_builder(output_file)
+#         except Exception as e:
+#             traceback.print_exc()
+
     
     def df_row_builder(self, output_file, df_dict):
         """
@@ -93,8 +140,7 @@ class perm_load:
             row.name = output.f_name
 
         except Exception as e:
-#             print(e)  # Print the exception message
-            print(f"On line {sys.exc_info()[-1].tb_lineno}, df_row_builder (.output loading) Exception error:\n {e}")
+            traceback.print_exc()
 
 
         try:
@@ -136,8 +182,7 @@ class perm_load:
             df_dict[row.name] = row
 
         except Exception as e:
-#             print(e)  # Print the exception message
-            print(f"On line {sys.exc_info()[-1].tb_lineno}, df_row_builder (.output loading) Exception error:\n {e}")
+            traceback.print_exc()
 
     def _construct_perm_df(self, df_dict):
         """

@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import welch
 from fooof import FOOOF
+import traceback
 
 
 class PSD:
@@ -21,6 +22,10 @@ class PSD:
                                       fs = self.sampling_freq, 
                                       nperseg = self.sampling_freq * bins_per_freq)
         
+        if len(self.bins) == 0:
+            raise Exception('Problem with computing PSD; bins/power is empty.  Check the passed signal.')
+            
+        
         welch_df = pd.DataFrame({'power': self.power}, index = self.bins) # power value at each frequency biny
         welch_df.index.names = ['bins'] # frequency bins
         
@@ -28,14 +33,6 @@ class PSD:
         
         if normalize:
             self.psd = self._normalize()
-
-            
-#             self.fm_aperiodic_params = self.fm.aperiodic_params_
-#             self.fm_peak_params = pd.DataFrame(self.fm.peak_params_, columns=['CF', 'PW', 'BW'])
-#             self.fm_r_squared = self.fm.r_squared_
-#             self.fm_error = self.fm.error_
-#             self.fm_fooofed_spectrum = self.fm.fooofed_spectrum_
-#             self.fm_n_peaks = self.fm.n_peaks_
     
     def __call__(self):
         """
@@ -53,11 +50,11 @@ class PSD:
 
         return normalized_PSD
     
-    def fm(self):
+    def fm(self, aperiodic_mode = 'knee'):
         """
         Call the fooof class to fit a model with power and freq values; returns the fitted fm object containing fitted data.
         """
-        fm_fooof = FOOOF_params(self.power, self.bins) # Create FOOOF_params class object
+        fm_fooof = FOOOF_params(self.power, self.bins, aperiodic_mode) # Create FOOOF_params class object
         return fm_fooof() # Call class object, which returns its fitted model (fm)
     
     def fm_peak_params(self, target_peak = 'all', peak_param = 'all'):    
@@ -81,12 +78,12 @@ class PSD:
 
     
 class FOOOF_params:
-    def __init__(self, power, bins, aperiodic_mode = 'knee'):
+    def __init__(self, power, bins, aperiodic_mode):
         self.power = np.array(power) # power values
         self.freqs = np.array(bins) # frequency bins
         self.aperiodic_mode = aperiodic_mode # see https://fooof-tools.github.io/fooof/auto_tutorials/plot_05-AperiodicFitting.html
         self.fm = self._fit_model() # fitted fooof model object
-        
+
     def __call__(self):
         return self.fm
     
@@ -94,8 +91,7 @@ class FOOOF_params:
         """
         Given power value and frequency bins arrays, fit a PSD to a FOOOF object
         """
-        
-        bin_range = [self.freqs.min(), self.freqs.max()] # freq range
+        bin_range = [min(self.freqs), max(self.freqs)] # freq range
         fm = FOOOF(aperiodic_mode = self.aperiodic_mode, verbose = False) # Define fooof object
         fm.fit(self.freqs, self.power, bin_range) # fit PSD model in fooof object; now contains attributes
 

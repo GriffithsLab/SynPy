@@ -55,7 +55,11 @@ class dot_conf:
         return all_permutations
 
 
-    def gen_confs(self, perm_dict, new_conf_dir, params = {}, dynamic_dose = None, filtered_perms = True, write_confs = True):
+    def gen_confs(self, perm_dict, new_conf_dir, params = {}, 
+                  dynamic_dose = None, 
+                  filtered_perms = True, 
+                  write_confs = True, 
+                  verbose = True):
         """
         perm_dict -- Dictionary object containing n parameters and their corresponding value ranges to generate permuations for.
                      Formatted as {'PARAMETER NAME' : [LOWEST VALUE, HIGHEST VALUE, STEP SIZE]}
@@ -73,7 +77,7 @@ class dot_conf:
 
         new_conf_text = self.conf_text
         if params:
-            [update_param(kw, value, new_conf_text, verbose = False) for kw, value in params.items()] # Alter base params before iterating
+            [update_param(kw, value, new_conf_text, verbose) for kw, value in params.items()] # Alter base params before perms
 
         new_confs = {} # will take the format {f_name : conf_txt}
 
@@ -87,17 +91,17 @@ class dot_conf:
         for perm in perms:
 
             # update the new_conf_text with each param in the unique permuatation item
-            [update_param(keywords[p_idx], format(param, '.2f'), new_conf_text) for p_idx, param in enumerate(perm)]
+            [update_param(keywords[p_idx], format(param, '.2f'), new_conf_text, verbose) for p_idx, param in enumerate(perm)]
             ### Adjusts stim length based on desired number of pulses ###
             if dynamic_dose:
                 stim_len = tbs_pulse_time(dynamic_dose, 
                                           pulses_per_burst = float(param_value('Bursts', new_conf_text)), 
                                           inter_burst_freq = float(param_value('Oscillation Frequency', new_conf_text)))
-                update_param('Duration', format(stim_len, '.2f'), new_conf_text)
+                update_param('Duration', format(stim_len, '.2f'), new_conf_text, verbose)
                 
                 onset = float(param_value('Onset', new_conf_text))
                 sim_len = onset + stim_len + 100 + onset
-                update_param('Time', format(sim_len, '.2f'), new_conf_text)
+                update_param('Time', format(sim_len, '.2f'), new_conf_text, verbose)
             #############################################################
                 
             var_time = float(param_value('Time', new_conf_text))
@@ -150,11 +154,22 @@ class dot_conf:
             If False, individually processes each .conf file through NFTsim.
         """
 
-        grid_points = self.gen_confs(perm_dict, new_conf_dir, params, dynamic_dose, filtered_perms)
+        grid_points = self.gen_confs(perm_dict, 
+                                     new_conf_dir, 
+                                     params, 
+                                     dynamic_dose, 
+                                     filtered_perms, 
+                                     write_confs = True, 
+                                     verbose = False)
 
-        gen_outputs(new_conf_dir, new_output_dir, batch, nft_path)
+        num_submitted_jobs = gen_outputs(new_conf_dir, 
+                                         new_output_dir, 
+                                         batch, 
+                                         nft_path)
 
         print('Jobs submitted.')
+        
+        return num_submitted_jobs
                 
     def run(self, conf_dir = 'confs/', output_dir = 'outputs/', params = {},
             gains = False, # return CT gain values instead of individual fields

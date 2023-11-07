@@ -12,11 +12,22 @@ output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 
 pkl = "xyz_gain_dict_600-3000.pkl"
 
-pulse_dose_range = {'start' : 620,
-                    'stop' : 620,
+pulse_dose_range = {'start' : 2260,
+                    'stop' : 3000,
                     'step' : 20}
 
-purge = True
+purge_dir = True
+# purge_dict = False
+
+# if purge_dict:
+#     with open(pkl, 'rb') as file:
+#         xyz_gain_dict = pickle.load(file)
+    
+#     xyz_gain_dict = {}
+    
+#     with open(pkl, 'wb') as file:
+#         pickle.dump(xyz_gain_dict, file)
+
 
 for dose in range(pulse_dose_range['start'], 
                   pulse_dose_range['stop'] + pulse_dose_range['step'], 
@@ -26,13 +37,19 @@ for dose in range(pulse_dose_range['start'],
     new_conf_dir = os.path.join(conf_dir, grid_dir_name)
     new_output_dir = os.path.join(output_dir, grid_dir_name)
 
-    if purge:
+    if purge_dir:
         if os.path.exists(new_conf_dir):
-            shutil.rmtree(new_conf_dir)
+            try:
+                shutil.rmtree(new_conf_dir)
+            except:
+                pass
         if os.path.exists(new_output_dir):
-            shutil.rmtree(new_output_dir)
+            try:
+                shutil.rmtree(new_output_dir)
+            except:
+                pass
 
-    # Run 
+#     # Run 
     params = { # Replaces each dictionary key with the corresponding value in the .conf
         'Onset:': 150,
         'Interval' : 1e-2
@@ -44,28 +61,36 @@ for dose in range(pulse_dose_range['start'],
     }
 
     # Make the confs and submit them for batch jobs
-    sp.dot_conf('eirs-tms-custom.conf').grid_outputs(perm_dict, 
+    num_submitted_jobs = sp.dot_conf('eirs-tms-custom.conf').grid_outputs(perm_dict, 
                                                      new_conf_dir, 
                                                      new_output_dir, 
                                                      params, 
                                                      dynamic_dose = dose, 
                                                      filtered_perms = True)
     
-    # Don't run the next segment of code until all batch jobs are finished processing
     expected_file_count = len(sp.valid_iTBS_protocols())
+    
     while True:
-        num_outputs = len(sp.list_files(new_output_dir, extension_filter = '.output'))
-        if num_outputs >= expected_file_count:
+        complete_jobs = sp.list_files(new_output_dir, extension_filter = "done.txt")
+        print(complete_jobs)
+        complete_output_files = sp.list_files(new_output_dir, extension_filter = ".output")
+
+        if len(complete_jobs) >= num_submitted_jobs:
             break
         else:
-            print(f'{int(num_outputs)}/{int(expected_file_count)} .output files')
+            print(f'{len(complete_output_files)}/{expected_file_count} .output files written',
+                  end='; ') 
+            print(f'{len(complete_jobs)}/{num_submitted_jobs} jobs fully complete')
             time.sleep(10)
 
     with open(pkl, 'rb') as file:
         xyz_gain_dict = pickle.load(file)
-
-    xyz_gain_dict[grid_dir_name] = sp.perm_load(new_output_dir).perm_df(load_type = 'parallel', 
-                                                                        threads = 20)
+        
+    df = sp.perm_load(new_output_dir).perm_df(load_type = 'parallel')
+    
+    print(df)
+    
+    xyz_gain_dict[grid_dir_name] = df
 
     # Open the same file in binary write mode to save the modified data
     with open(pkl, 'wb') as file:
@@ -75,5 +100,5 @@ for dose in range(pulse_dose_range['start'],
     shutil.rmtree(new_conf_dir)
     shutil.rmtree(new_output_dir)
 
-    
-    
+    if len(df.index) != expected_file_count:
+        raise Exception('Write error, missing protocol entries.')
