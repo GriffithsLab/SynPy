@@ -83,6 +83,9 @@ class FOOOF_params:
         self.freqs = np.array(bins) # frequency bins
         self.aperiodic_mode = aperiodic_mode # see https://fooof-tools.github.io/fooof/auto_tutorials/plot_05-AperiodicFitting.html
         self.fm = self._fit_model() # fitted fooof model object
+        
+        if len(self.fm.peak_params_) == 0:
+            raise Exception('FOOOF could not successfully fit a model to the provided spectra.')
 
     def __call__(self):
         return self.fm
@@ -91,7 +94,7 @@ class FOOOF_params:
         """
         Given power value and frequency bins arrays, fit a PSD to a FOOOF object
         """
-        bin_range = [min(self.freqs), max(self.freqs)] # freq range
+        bin_range = [1, max(self.freqs)] # freq range
         fm = FOOOF(aperiodic_mode = self.aperiodic_mode, verbose = False) # Define fooof object
         fm.fit(self.freqs, self.power, bin_range) # fit PSD model in fooof object; now contains attributes
 
