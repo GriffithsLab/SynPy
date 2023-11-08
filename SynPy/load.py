@@ -46,33 +46,6 @@ class perm_load:
             df_dict[output_file] = self.df_row_builder(output_file, df_dict)
 
         return df_dict
-    
-    # Function to parallelize the loading process
-#     def parallel_load(self, threads):
-#         """
-#         Use multiprocesses to parallelize generating dataframe rows.
-#         """
-#         print('Parallelized loading...')
-        
-#         manager = mp.Manager()
-#         df_dict = manager.dict() # Dictionary that gets shared among the multiprocess
-
-#         # Create a thread pool with a reduced number of threads
-#         pool = mp.Pool(processes = threads) # 'processes' argument may be passed if loading hits memory limit
-
-#         with tqdm(total=len(self.output_files)) as pbar: # Use tqdm to track the progress of the parallel loading
-#             def update_pbar(_): # Helper function to update the tqdm progress bar
-#                 pbar.update(1)
-
-#             # Apply the paralloader function to each output file in parallel
-#             for output_file in self.output_files:
-#                 pool.apply_async(self.df_row_builder, args=(output_file, df_dict), callback=update_pbar)
-
-#             # Close the pool
-#             pool.close()
-#             pool.join()
-
-#         return df_dict
 
     def parallel_load(self, threads):
         """

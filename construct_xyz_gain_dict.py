@@ -41,15 +41,13 @@ for dose in range(pulse_dose_range['start'],
         if os.path.exists(new_conf_dir):
             try:
                 shutil.rmtree(new_conf_dir)
-            except:
-                pass
+            except: pass
         if os.path.exists(new_output_dir):
             try:
                 shutil.rmtree(new_output_dir)
-            except:
-                pass
+            except: pass
 
-#     # Run 
+    # Run 
     params = { # Replaces each dictionary key with the corresponding value in the .conf
         'Onset:': 150,
         'Interval' : 1e-2
@@ -72,14 +70,12 @@ for dose in range(pulse_dose_range['start'],
     
     while True:
         complete_jobs = sp.list_files(new_output_dir, extension_filter = "done.txt")
-        print(complete_jobs)
         complete_output_files = sp.list_files(new_output_dir, extension_filter = ".output")
 
         if len(complete_jobs) >= num_submitted_jobs:
             break
         else:
-            print(f'{len(complete_output_files)}/{expected_file_count} .output files written',
-                  end='; ') 
+            print(f'{len(complete_output_files)}/{expected_file_count} .output files written', end='; ') 
             print(f'{len(complete_jobs)}/{num_submitted_jobs} jobs fully complete')
             time.sleep(10)
 
@@ -96,9 +92,9 @@ for dose in range(pulse_dose_range['start'],
     with open(pkl, 'wb') as file:
         pickle.dump(xyz_gain_dict, file)
 
-
+    if len(df.index) != expected_file_count:
+        missing_entries = [entry for entry in sp.valid_iTBS_protocols() if entry not in df.index]
+        raise Exception(f'Write error; missing protocol entries: \n{missing_entries}')
+        
     shutil.rmtree(new_conf_dir)
     shutil.rmtree(new_output_dir)
-
-    if len(df.index) != expected_file_count:
-        raise Exception('Write error, missing protocol entries.')
