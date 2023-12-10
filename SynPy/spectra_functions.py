@@ -8,8 +8,8 @@ import traceback
 
 class PSD:
     def __init__(self, signal, sampling_freq, normalize = False, 
-                 bin_min = 1, 
-                 bin_max = 50, 
+                 bin_min = .2, 
+                 bin_max = 50,
                  bins_per_freq = 5):
         """
         Power spectrum class object.  Given frequency bin and power value arrays, returns a PSD dataframe when called (ie. sp.PSD(args)()).
@@ -30,6 +30,8 @@ class PSD:
         welch_df.index.names = ['bins'] # frequency bins
         
         self.psd = welch_df.loc[bin_min:bin_max]
+        self.bins = self.psd.index.values
+        self.power = self.psd['power'].values
         
         if normalize:
             self.psd = self._normalize()
@@ -56,6 +58,26 @@ class PSD:
         """
         fm_fooof = FOOOF_params(self.power, self.bins, aperiodic_mode) # Create FOOOF_params class object
         return fm_fooof() # Call class object, which returns its fitted model (fm)
+    
+    def fm_aperiodic_params(self, aper_param = 'all'):
+        aper_param = aper_param.lower()
+        
+        if len(self.fm().aperiodic_params_) == 2:
+            aper_columns = ['offset', 'exponent']
+            if aper_param == 'knee':
+                raise ValueError("fm was not fitted with a knee")
+        elif len(self.fm().aperiodic_params_) == 3:
+            aper_columns = ['offset', 'knee', 'exponent']
+            
+            
+        aper_df = pd.DataFrame(self.fm().aperiodic_params_, columns = aper_columns)
+        
+        if target_peak == 'all':
+            return aper_df
+        elif aper_param not in aper_columns:
+            raise ValueError(f"'{aper_param}' not valid.  Pass either 'all' or one of ['offset', 'knee', 'exponent'].")
+
+        return aper_df[aper_param]
     
     def fm_peak_params(self, target_peak = 'all', peak_param = 'all'):    
         peak_columns = ['CF', 'PW', 'BW']
@@ -94,7 +116,7 @@ class FOOOF_params:
         """
         Given power value and frequency bins arrays, fit a PSD to a FOOOF object
         """
-        bin_range = [1, max(self.freqs)] # freq range
+        bin_range = [min(self.freqs), max(self.freqs)] # freq range
         fm = FOOOF(aperiodic_mode = self.aperiodic_mode, verbose = False) # Define fooof object
         fm.fit(self.freqs, self.power, bin_range) # fit PSD model in fooof object; now contains attributes
 

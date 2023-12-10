@@ -100,7 +100,8 @@ class dot_conf:
                 update_param('Duration', format(stim_len, '.2f'), new_conf_text, verbose)
                 
                 onset = float(param_value('Onset', new_conf_text))
-                sim_len = onset + stim_len + 100 + onset
+                SIGNAL_TRANSDUCTION_DELAY = 100
+                sim_len = onset + stim_len + SIGNAL_TRANSDUCTION_DELAY + onset
                 update_param('Time', format(sim_len, '.2f'), new_conf_text, verbose)
             #############################################################
                 

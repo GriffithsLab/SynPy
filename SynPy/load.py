@@ -124,9 +124,14 @@ class perm_load:
                 output.sampling_rate,
                 target_peak = 'broadband',
             )
+            
+            row['1_over_f'] = float(PSD(
+                post_stim['pop.e.v'], 
+                output.sampling_rate).fm_aperiodic_params(aper_param = 'Exponent')
+                                   )
 
             row['alpha_CF'] = float(PSD(
-                pre_stim['pop.e.v'], 
+                post_stim['pop.e.v'], 
                 output.sampling_rate).fm_peak_params(target_peak = 10, 
                                                      peak_param = 'CF')
            )
