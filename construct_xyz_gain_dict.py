@@ -10,13 +10,15 @@ import shutil
 conf_dir = os.path.join(os.getcwd(), 'confs/dosage/')
 output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 
-pkl = "xyz_gain_dict_600-3000.pkl"
+pkl = "CT_results_600-1800.pkl"
 
-pulse_dose_range = {'start' : 2260,
-                    'stop' : 3000,
+pulse_dose_range = {'start' : 600,
+                    'stop' : 600,
                     'step' : 20}
 
 purge_dir = True
+
+
 # purge_dict = False
 
 # if purge_dict:
@@ -27,6 +29,15 @@ purge_dir = True
     
 #     with open(pkl, 'wb') as file:
 #         pickle.dump(xyz_gain_dict, file)
+
+# Check for if the pickle file exists
+try: # Try to open the existing pickle file
+    with open(pkl, 'rb') as file:
+        pickle.load(file)
+except FileNotFoundError: # If the file doesn't exist, create a new empty dictionary
+    with open(pkl, 'wb') as file:
+        pickle.dump({}, file)
+        
 
 
 for dose in range(pulse_dose_range['start'], 

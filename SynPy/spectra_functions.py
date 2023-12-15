@@ -83,13 +83,24 @@ class PSD:
         peak_columns = ['CF', 'PW', 'BW']
         peaks_df = pd.DataFrame(self.fm().peak_params_, columns = peak_columns)
         
+        print(peaks_df)
+        
         if target_peak == 'all':
             return peaks_df
-        elif not isinstance(target_peak, int):
-            raise ValueError('target_peak must be either "all" or an integer.')
+        elif isinstance(target_peak, list):
+            peak_low_end, peak_high_end = target_peak[0], target_peak[-1]
+            if not len(target_peak) == 2 or peak_low_end > peak_high_end:
+                raise ValueError('target_peak range must be passed in format [low_end, high_end].  low_end must be < high_end.')
             
+            # Find the largest peak between a given frequency range of the PSD
+            largest_peak_idx = peaks_df[(peaks_df['CF'] >= peak_low_end) & (peaks_df['CF'] <= peak_high_end)]['PW'].idxmax()
+            target_row = peaks_df.loc[largest_peak_idx]
             
-        target_row = peaks_df.iloc[(peaks_df['CF'] - target_peak).abs().idxmin()]
+        elif isinstance(target_peak, int):
+            target_row = peaks_df.iloc[(peaks_df['CF'] - target_peak).abs().idxmin()] # Grab by peak nearest to target_peak integer
+        else:
+            raise ValueError('target_peak must be either "all", an integer, or a list with low and high_end ranges (ie. [8, 13]).')
+        
         
         if peak_param == 'all':
             return target_row
@@ -137,9 +148,8 @@ def PSD_delta(pre_signal, post_signal, sampling_freq, target_peak = 'broadband',
         AUC_delta = (pre_auc - post_auc) / pre_auc
     
         return AUC_delta
-
     
-    elif isinstance(target_peak, int): # PSD peak nearest to an inputted frequency bin
+    elif isinstance(target_peak, int) or isinstance(target_peak, list): # PSD peak nearest to an inputted frequency bin
         pre_peak_param_value = float(pre_psd.fm_peak_params(target_peak, peak_param))
         post_peak_param_value = float(post_psd.fm_peak_params(target_peak, peak_param))
         
@@ -148,10 +158,9 @@ def PSD_delta(pre_signal, post_signal, sampling_freq, target_peak = 'broadband',
         return FOOOF_delta
     
     else:
-        raise ValueError('target_peak must be either equal to "broadband" or an integer.')
+        raise ValueError('target_peak must be either equal to "broadband", an integer, or a list with low and high_end integers.')
 
-        
-        
+
 
 # def graph_PSD_delta(pre_signal, 
 #                     post_signal,

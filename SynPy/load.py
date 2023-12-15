@@ -117,7 +117,7 @@ class perm_load:
 
 
         try:
-
+            # Broadband
             row['V_AUC_delta'] = PSD_delta(
                 pre_stim['pop.e.v'],
                 post_stim['pop.e.v'],
@@ -125,36 +125,56 @@ class perm_load:
                 target_peak = 'broadband',
             )
             
-            row['1_over_f'] = float(PSD(
-                post_stim['pop.e.v'], 
-                output.sampling_rate).fm_aperiodic_params(aper_param = 'Exponent')
-                                   )
-
+            # 1/f
+            pre_exp = float(PSD(pre_stim['pop.e.v'], output.sampling_rate).fm().aperiodic_params_[-1])
+            post_exp = float(PSD(post_stim['pop.e.v'], output.sampling_rate).fm().aperiodic_params_[-1])
+            row['exponent_delta'] = (pre_exp - post_exp) / pre_exp
+            
+            
+            # Central Frequency
             row['alpha_CF'] = float(PSD(
                 post_stim['pop.e.v'], 
-                output.sampling_rate).fm_peak_params(target_peak = 10, 
-                                                     peak_param = 'CF')
-           )
+                output.sampling_rate).fm_peak_params(target_peak = [8,13], 
+                                                     peak_param = 'CF'))
             
-            row['FOOOF_PW_delta'] = PSD_delta(
+            # Peak power
+            row['delta_PW_delta'] = PSD_delta(
                 pre_stim['pop.e.v'],
                 post_stim['pop.e.v'],
                 output.sampling_rate,
-                target_peak = 10,
+                target_peak = [1,4],
                 peak_param = 'PW'
             )
-
+            
+            row['alpha_PW_delta'] = PSD_delta(
+                pre_stim['pop.e.v'],
+                post_stim['pop.e.v'],
+                output.sampling_rate,
+                target_peak = [8,13],
+                peak_param = 'PW'
+            )
+            
+            row['beta_PW_delta'] = PSD_delta(
+                pre_stim['pop.e.v'],
+                post_stim['pop.e.v'],
+                output.sampling_rate,
+                target_peak = [15,30],
+                peak_param = 'PW'
+            )
+            
+            # Nu values
             nu_cols = [c for c in pre_stim.columns if fnmatch.fnmatch(c, 'coupling.*.nu')]
             pre_nu = pre_stim[nu_cols].mean()
             post_nu = post_stim[nu_cols].mean()
-
-            nu_delta = (post_nu - pre_nu) / pre_nu
-            for idx, nu in nu_delta.iteritems():
-                row[f'delta_{idx}'] = nu
             
-            gains_delta = abs((post_gains - pre_gains) / pre_gains)
+            nu_delta = abs((pre_nu - post_nu) / pre_nu)
+            for idx, nu in nu_delta.iteritems():
+                row[f'{idx}_delta'] = nu
+            
+            # Gain values
+            gains_delta = abs((pre_gains - post_gains) / pre_gains)
             for idx, gain in gains_delta.iteritems():
-                row[f'delta_{idx}'] = gain
+                row[f'{idx}_delta'] = gain
 
 
             df_dict[row.name] = row
