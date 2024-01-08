@@ -10,17 +10,18 @@ class PSD:
     def __init__(self, signal, sampling_freq, normalize = False, 
                  bin_min = .2, 
                  bin_max = 50,
-                 bins_per_freq = 5):
+                 bins_per_freq = 2):
         """
         Power spectrum class object.  Given frequency bin and power value arrays, returns a PSD dataframe when called (ie. sp.PSD(args)()).
         
         Optionally set fooof = True (default: False) to fit the PSD and set the fitted model (fm) object as an attribute.
         """
         self.sampling_freq = sampling_freq
+        nperseg = self.sampling_freq * bins_per_freq
         
         self.bins, self.power = welch(signal.values.reshape(len(signal)),
                                       fs = self.sampling_freq, 
-                                      nperseg = self.sampling_freq * bins_per_freq)
+                                      nperseg = nperseg)
         
         if len(self.bins) == 0:
             raise Exception('Problem with computing PSD; bins/power is empty.  Check the passed signal.')
@@ -65,7 +66,7 @@ class PSD:
         if len(self.fm().aperiodic_params_) == 2:
             aper_columns = ['offset', 'exponent']
             if aper_param == 'knee':
-                raise ValueError("fm was not fitted with a knee")
+                raise ValueError("fm was not fitted with a knee.")
         elif len(self.fm().aperiodic_params_) == 3:
             aper_columns = ['offset', 'knee', 'exponent']
             
@@ -83,18 +84,19 @@ class PSD:
         peak_columns = ['CF', 'PW', 'BW']
         peaks_df = pd.DataFrame(self.fm().peak_params_, columns = peak_columns)
         
-        print(peaks_df)
-        
         if target_peak == 'all':
             return peaks_df
         elif isinstance(target_peak, list):
-            peak_low_end, peak_high_end = target_peak[0], target_peak[-1]
+            peak_low_end, peak_high_end = target_peak
             if not len(target_peak) == 2 or peak_low_end > peak_high_end:
                 raise ValueError('target_peak range must be passed in format [low_end, high_end].  low_end must be < high_end.')
             
             # Find the largest peak between a given frequency range of the PSD
-            largest_peak_idx = peaks_df[(peaks_df['CF'] >= peak_low_end) & (peaks_df['CF'] <= peak_high_end)]['PW'].idxmax()
-            target_row = peaks_df.loc[largest_peak_idx]
+            filtered_freqs = peaks_df[(peaks_df['CF'] >= peak_low_end) & (peaks_df['CF'] <= peak_high_end)]
+            if filtered_freqs.empty:
+                raise Exception(f'No peaks detected between {peak_low_end} and {peak_high_end} Hz.')
+            largest_peak_idx = filtered_freqs['PW'].idxmax()
+            target_row = peaks_df.iloc[largest_peak_idx]
             
         elif isinstance(target_peak, int):
             target_row = peaks_df.iloc[(peaks_df['CF'] - target_peak).abs().idxmin()] # Grab by peak nearest to target_peak integer

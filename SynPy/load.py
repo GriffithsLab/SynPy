@@ -100,23 +100,32 @@ class perm_load:
 
         try:
             output = dot_output(output_file)
+            
+            pre_stim_grab_time = output.stim_onset - 10
+            post_stim_grab_time = output.time - 140 # last 140 seconds of simulation time
 
             numerical = output.df(gains=False)
-            pre_stim = numerical.loc[:output.stim_onset - 10]
-            post_stim = numerical.loc[output.stim_onset + output.stim_duration + 110:]
+            pre_stim = numerical.loc[:pre_stim_grab_time]
+            post_stim = numerical.loc[post_stim_grab_time:] # last old: output.stim_onset + output.stim_duration + 110
             
             gains = output.df(gains=True)
-            pre_gains = gains.loc[:output.stim_onset - 10].mean()
-            post_gains = gains.loc[output.time - 10:output.time].mean()
+            pre_gains = gains.loc[:pre_stim_grab_time].mean()
+            post_gains = gains.loc[post_stim_grab_time:].mean() # before as using last 10 seconds, now trying spectra range average
 
-            row = gains.loc[output.time - 10:output.time].mean() # grab average gain from last 10 seconds (post-stim) simulation
-            row.name = output.f_name
+            row = pd.Series(name = output.f_name)
+            
+#             row = gains.loc[output.time - 10:output.time].mean() # grab average gain from last 10 seconds (post-stim) simulation
 
         except Exception as e:
             traceback.print_exc()
 
 
         try:
+            # Gain values
+            for idx, gain in post_gains.iteritems():
+                row[idx] = gain
+            
+            
             # Broadband
             row['V_AUC_delta'] = PSD_delta(
                 pre_stim['pop.e.v'],
@@ -138,14 +147,6 @@ class perm_load:
                                                      peak_param = 'CF'))
             
             # Peak power
-            row['delta_PW_delta'] = PSD_delta(
-                pre_stim['pop.e.v'],
-                post_stim['pop.e.v'],
-                output.sampling_rate,
-                target_peak = [1,4],
-                peak_param = 'PW'
-            )
-            
             row['alpha_PW_delta'] = PSD_delta(
                 pre_stim['pop.e.v'],
                 post_stim['pop.e.v'],
@@ -162,16 +163,17 @@ class perm_load:
                 peak_param = 'PW'
             )
             
-            # Nu values
+            
+            # Nu deltas
             nu_cols = [c for c in pre_stim.columns if fnmatch.fnmatch(c, 'coupling.*.nu')]
             pre_nu = pre_stim[nu_cols].mean()
             post_nu = post_stim[nu_cols].mean()
-            
+                        
             nu_delta = abs((pre_nu - post_nu) / pre_nu)
             for idx, nu in nu_delta.iteritems():
                 row[f'{idx}_delta'] = nu
             
-            # Gain values
+            # Gain deltas
             gains_delta = abs((pre_gains - post_gains) / pre_gains)
             for idx, gain in gains_delta.iteritems():
                 row[f'{idx}_delta'] = gain
