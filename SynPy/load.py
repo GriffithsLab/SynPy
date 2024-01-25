@@ -4,7 +4,7 @@ import traceback
 import fnmatch
 from tqdm import tqdm
 import pandas as pd
-from .nftsim_generator_FUNCTIONS import list_files, protocol_params, tbs_train_dose
+from .nftsim_generator_FUNCTIONS import list_files, protocol_params, tbs_train_dose, param_value
 from .output_handler import dot_output
 from .spectra_functions import PSD, PSD_delta
 from .param_space import valid_iTBS_protocols
@@ -106,11 +106,16 @@ class perm_load:
 
             numerical = output.df(gains=False)
             pre_stim = numerical.loc[:pre_stim_grab_time]
+            active_stim = numerical.loc[output.stim_onset : output.stim_onset+output.stim_duration]
             post_stim = numerical.loc[post_stim_grab_time:] # last old: output.stim_onset + output.stim_duration + 110
             
             gains = output.df(gains=True)
             pre_gains = gains.loc[:pre_stim_grab_time].mean()
             post_gains = gains.loc[post_stim_grab_time:].mean() # before as using last 10 seconds, now trying spectra range average
+            
+            
+            pth = float(param_value('Pth|Coupling 1', output.params)) # LTP threshold
+            dth = float(param_value('Dth|Coupling 1', output.params)) # LTD threshold
 
             row = pd.Series(name = output.f_name)
             
@@ -168,6 +173,7 @@ class perm_load:
             nu_cols = [c for c in pre_stim.columns if fnmatch.fnmatch(c, 'coupling.*.nu')]
             pre_nu = pre_stim[nu_cols].mean()
             post_nu = post_stim[nu_cols].mean()
+            
                         
             nu_delta = abs((pre_nu - post_nu) / pre_nu)
             for idx, nu in nu_delta.iteritems():
@@ -177,6 +183,23 @@ class perm_load:
             gains_delta = abs((pre_gains - post_gains) / pre_gains)
             for idx, gain in gains_delta.iteritems():
                 row[f'{idx}_delta'] = gain
+                
+                
+            # Active calcium (percentage of time calcium spends in a plasticity-inducing state during active TMS)
+            for conn_Ca in [c for c in active_stim.columns if fnmatch.fnmatch(c, 'coupling.*.ca')]:
+                ca_df = active_stim[conn_Ca]
+                row[f'{conn_Ca.split(".")[1]}_Ca_active'] = len(ca_df[(ca_df > dth) & (ca_df < pth) | (ca_df > pth)]) / len(ca_df)
+                row[f'{conn_Ca.split(".")[1]}_Ca_ltp'] = len(ca_df[(ca_df > pth)]) / len(ca_df)
+                row[f'{conn_Ca.split(".")[1]}_Ca_ltd'] = len(ca_df[(ca_df > dth) & (ca_df < pth)]) / len(ca_df)
+                
+                row[f'RAW_{conn_Ca.split(".")[1]}_Ca_active'] = len(ca_df[(ca_df > dth) & (ca_df < pth) | (ca_df > pth)])
+                row[f'RAW_{conn_Ca.split(".")[1]}_Ca_ltp'] = len(ca_df[(ca_df > pth)])
+                row[f'RAW_{conn_Ca.split(".")[1]}_Ca_ltd'] = len(ca_df[(ca_df > dth) & (ca_df < pth)])
+            
+#             row['mean_cas'] = row[c for c in pre_stim.columns if fnmatch.fnmatch(c, 'RAW_*_Ca_active')].mean()
+#             row['RAW_mean_cas'] = row[f'RAW_{conn_Ca.split(".")[1]}_Ca_active'].mean()
+                
+                
 
 
             df_dict[row.name] = row
