@@ -3,8 +3,9 @@ import numpy as np
 from itertools import product
 from .nftsim_generator_FUNCTIONS import (
     param_value, 
-    update_param, 
-    tbs_pulse_time, 
+    update_param,
+    tbs_pulse_amp,
+    tbs_pulse_time,
     save_confs, 
     nftsim_run,
     protocol_params
@@ -56,7 +57,8 @@ class dot_conf:
 
 
     def gen_confs(self, perm_dict, new_conf_dir, params = {}, 
-                  dynamic_dose = None, 
+                  dynamic_dose = None,
+                  dynamic_amp = None,
                   filtered_perms = True, 
                   write_confs = True, 
                   verbose = True):
@@ -103,6 +105,14 @@ class dot_conf:
                 SIGNAL_TRANSDUCTION_DELAY = 100
                 sim_len = onset + stim_len + SIGNAL_TRANSDUCTION_DELAY + onset # + 200 # old: onset + stim_len + SIGNAL_TRANSDUCTION_DELAY + onset
                 update_param('Time', format(sim_len, '.2f'), new_conf_text, verbose)
+                
+            if dynamic_amp:
+                update_param('Amplitude', tbs_pulse_amp(base_amp = dynamic_amp, 
+                                                        pulses_per_burst = float(param_value('Bursts', new_conf_text)), 
+                                                        inter_burst_freq = float(param_value('Oscillation Frequency', new_conf_text)),
+                                                        amp_scale_limit = 2), 
+                             new_conf_text, verbose)
+                
             #############################################################
                 
             var_time = float(param_value('Time', new_conf_text))
@@ -133,6 +143,7 @@ class dot_conf:
     def grid_outputs(self, perm_dict, new_conf_dir, new_output_dir, params = {}, 
                      
                      dynamic_dose = None,
+                     dynamic_amp = None,
                      filtered_perms = True,
                      batch = True,
                      nft_path = 'nftsim/bin/nftsim'):
@@ -158,7 +169,8 @@ class dot_conf:
         grid_points = self.gen_confs(perm_dict, 
                                      new_conf_dir, 
                                      params, 
-                                     dynamic_dose, 
+                                     dynamic_dose,
+                                     dynamic_amp,
                                      filtered_perms, 
                                      write_confs = True, 
                                      verbose = False)

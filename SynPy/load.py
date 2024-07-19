@@ -3,6 +3,7 @@ import multiprocessing as mp
 import traceback
 import fnmatch
 from tqdm import tqdm
+import numpy as np
 import pandas as pd
 from .nftsim_generator_FUNCTIONS import list_files, protocol_params, tbs_train_dose, param_value
 from .output_handler import dot_output
@@ -193,6 +194,18 @@ class perm_load:
             gains_delta = abs((pre_gains - post_gains) / pre_gains)
             for idx, gain in gains_delta.items():
                 row[f'{idx}_delta'] = gain
+                
+            
+            #NMDA condutance / gains AUC during stim
+            gnmda_cols = [c for c in pre_stim.columns if fnmatch.fnmatch(c, 'coupling.*.gnmda')]
+            for gnmda_col in gnmda_cols:                
+                gnmda_diff = (active_stim[gnmda_col] - pre_stim[gnmda_col].iloc[0])
+
+                positive_diff = gnmda_diff[gnmda_diff > 0]
+                negative_diff = gnmda_diff[gnmda_diff < 0]
+            
+                row[f'{gnmda_col}_auc'] = (np.trapz(abs(positive_diff)) + np.trapz(abs(negative_diff))) / output.stim_duration
+#                 row[f'{gnmda_col}_trend'] = active_stim[gnmda_col]
                 
                 
             # Active calcium (percentage of time calcium spends in a plasticity-inducing state during active TMS)
