@@ -127,7 +127,7 @@ class perm_load:
 
         try:
             # Gain values
-            for idx, gain in post_gains.iteritems():
+            for idx, gain in post_gains.items():
                 row[idx] = gain
             
             
@@ -147,16 +147,24 @@ class perm_load:
             
             # Central Frequency
             row['alpha_CF'] = float(PSD(
-                post_stim['pop.e.v'], 
-                output.sampling_rate).fm_peak_params(target_peak = [8,13], 
+                pre_stim['pop.e.v'], 
+                output.sampling_rate).fm_peak_params(target_peak = [7,14], 
                                                      peak_param = 'CF'))
+            
+            row['alpha_CF_delta'] = PSD_delta(
+                pre_stim['pop.e.v'],
+                post_stim['pop.e.v'],
+                output.sampling_rate,
+                target_peak = [7,14],
+                peak_param = 'CF'
+            )
             
             # Peak power
             row['alpha_PW_delta'] = PSD_delta(
                 pre_stim['pop.e.v'],
                 post_stim['pop.e.v'],
                 output.sampling_rate,
-                target_peak = [8,13],
+                target_peak = [7,14], # was 8, 13
                 peak_param = 'PW'
             )
             
@@ -174,14 +182,16 @@ class perm_load:
             pre_nu = pre_stim[nu_cols].mean()
             post_nu = post_stim[nu_cols].mean()
             
+            for idx, nu in post_nu.items(): # could try grabing mean nu values within last 10 seconds
+                row[f'{idx}_post'] = nu
                         
-            nu_delta = abs((pre_nu - post_nu) / pre_nu)
-            for idx, nu in nu_delta.iteritems():
+            nu_delta = abs((pre_nu - post_nu) / pre_nu) # grab absolute mean nu value deltas within entire post-stim duration
+            for idx, nu in nu_delta.items():
                 row[f'{idx}_delta'] = nu
             
             # Gain deltas
             gains_delta = abs((pre_gains - post_gains) / pre_gains)
-            for idx, gain in gains_delta.iteritems():
+            for idx, gain in gains_delta.items():
                 row[f'{idx}_delta'] = gain
                 
                 

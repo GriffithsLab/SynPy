@@ -6,6 +6,9 @@ import re
 import subprocess
 
 
+def norm(series):
+    return (series - series.min()) / (series.max() - series.min())
+
 def protocol_params(string):
     """
     Given a permutation string (ex. eirs-tms-custom_PERM_[bur=10.00_osc=1.75].output), returns a dicitonary of all protocol 
@@ -24,7 +27,23 @@ def protocol_params(string):
             param_name, param_value = param.split('=')
             parameters[param_name] = param_value
 
-    return parameters   
+    return parameters
+
+def tbs_pulse_amp(base_amp, pulses_per_burst, inter_burst_freq, amp_scale_limit = None):
+    
+    conventional_stim_intensity = tbs_train_dose(pulses_per_burst = 3, 
+                                                 inter_burst_freq = 5)
+                                               
+                
+    protocol_stim_intensity = tbs_train_dose(pulses_per_burst = pulses_per_burst, 
+                                            inter_burst_freq = inter_burst_freq)
+
+    scaled_protocol_amplitude = base_amp * (conventional_stim_intensity / protocol_stim_intensity)
+    
+    if amp_scale_limit:
+        scaled_protocol_amplitude = min(scaled_protocol_amplitude, base_amp * amp_scale_limit)
+    
+    return format(scaled_protocol_amplitude, '.2f')
 
 def tbs_train_dose(pulses_per_burst, inter_burst_freq, on_time = 2, off_time = 8):
     return tbs_time_pulse(stim_length = on_time + off_time, 

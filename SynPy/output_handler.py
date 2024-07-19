@@ -79,27 +79,32 @@ class dot_output:
         Given the default or passed dictionary object outlining the population number -> identifying letter, generate
         the dictionary object for their connections with the 'receipt-sender' label.
         """
-        matrix_idx  = [idx + 2 for idx, i in enumerate(self.params) if 'matrix:' in i] # index where connection matrix values begin
-        if not len(matrix_idx) == 1:
-            raise Exception('Either zero or multiple instances of "matrix:" present in parameters.  Cannot construct connection matrix.')
+        
+        try:
+            matrix_idx  = [idx + 2 for idx, i in enumerate(self.params) if 'matrix:' in i] # index where connection matrix values begin
+            if not len(matrix_idx) == 1:
+                raise Exception('Either zero or multiple instances of "matrix:" present in parameters.  Cannot construct connection matrix.')
+
+            matrix_idx = matrix_idx[0]
+            string_conn_mat = self.params[matrix_idx : matrix_idx + len(self.pop_nums)] # make the range equal to the length of the pop dict
+
+            matrix = [] # convert the string version of the conn_mat into a proper array
+            for row_num, row in enumerate(string_conn_mat): # for each row
+                row = row.split()[2:] # Exclude the row label and first column
+                row = [int(num) if num.isdigit() else 0 for num in row]
+                matrix.append(row)
+
+            conn_mat = {}
+            for row_num, row in enumerate(matrix): # for each row in the matrix (afferent population; To:)
+                for col_num, col in enumerate(row):  # for each column in the trow (efferent population; From:)
+                    if matrix[row_num][col_num]: # if there is a non-zero number (ie. a connection)
+                        conn_mat[matrix[row_num][col_num]] = f'{self.pop_nums[row_num + 1]}{self.pop_nums[col_num + 1]}' # add to conn_mat dict
+
+            return conn_mat
+        
+        except:
+            return None
             
-        matrix_idx = matrix_idx[0]
-        string_conn_mat = self.params[matrix_idx : matrix_idx + len(self.pop_nums)] # make the range equal to the length of the pop dict
-
-        matrix = [] # convert the string version of the conn_mat into a proper array
-        for row_num, row in enumerate(string_conn_mat): # for each row
-            row = row.split()[2:] # Exclude the row label and first column
-            row = [int(num) if num.isdigit() else 0 for num in row]
-            matrix.append(row)
-
-        conn_mat = {}
-        for row_num, row in enumerate(matrix): # for each row in the matrix (afferent population; To:)
-            for col_num, col in enumerate(row):  # for each column in the trow (efferent population; From:)
-                if matrix[row_num][col_num]: # if there is a non-zero number (ie. a connection)
-                    conn_mat[matrix[row_num][col_num]] = f'{self.pop_nums[row_num + 1]}{self.pop_nums[col_num + 1]}' # add to conn_mat dict
-                    
-        return conn_mat
-    
     def NFTsim_obj(self):
         """
         Returns the NFTsim output class object.
