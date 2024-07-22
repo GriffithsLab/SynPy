@@ -198,24 +198,31 @@ class perm_load:
             
             #NMDA condutance / gains AUC during stim
             gnmda_cols = [c for c in pre_stim.columns if fnmatch.fnmatch(c, 'coupling.*.gnmda')]
-            for gnmda_col in gnmda_cols:                
-                gnmda_diff = (active_stim[gnmda_col] - pre_stim[gnmda_col].iloc[0])
+            for gnmda_col in gnmda_cols:
+                row[f'{gnmda_col}_std'] = np.std(active_stim[gnmda_col])
+                
+#                 gnmda_diff = (active_stim[gnmda_col] - pre_stim[gnmda_col].iloc[0])
 
-                positive_diff = gnmda_diff[gnmda_diff > 0]
-                negative_diff = gnmda_diff[gnmda_diff < 0]
+#                 positive_diff = gnmda_diff[gnmda_diff > 0]
+#                 negative_diff = gnmda_diff[gnmda_diff < 0]
+                
+                
             
-                row[f'{gnmda_col}_auc'] = (np.trapz(abs(positive_diff)) + np.trapz(abs(negative_diff))) / output.stim_duration
+#                 row[f'{gnmda_col}_auc'] = (np.trapz(abs(positive_diff)) + np.trapz(abs(negative_diff))) / output.stim_duration
+#                 row[f'{gnmda_col}_auc_diff'] = (np.trapz(abs(positive_diff)) - np.trapz(abs(negative_diff))) / output.stim_duration
+#                 row[f'{gnmda_col}_abs_diff'] = max(active_stim[gnmda_col]) - min(active_stim[gnmda_col])
+                
 #                 row[f'{gnmda_col}_trend'] = active_stim[gnmda_col]
                 
                 
             # Active calcium (percentage of time calcium spends in a plasticity-inducing state during active TMS)
             for conn_Ca in [c for c in active_stim.columns if fnmatch.fnmatch(c, 'coupling.*.ca')]:
                 ca_df = active_stim[conn_Ca]
-                row[f'{conn_Ca.split(".")[1]}_Ca_active'] = len(ca_df[(ca_df > dth) & (ca_df < pth) | (ca_df > pth)]) / len(ca_df)
-                row[f'{conn_Ca.split(".")[1]}_Ca_ltp'] = len(ca_df[(ca_df > pth)]) / len(ca_df)
-                row[f'{conn_Ca.split(".")[1]}_Ca_ltd'] = len(ca_df[(ca_df > dth) & (ca_df < pth)]) / len(ca_df)
+#                 row[f'{conn_Ca.split(".")[1]}_Ca_active'] = len(ca_df[(ca_df > dth) & (ca_df < pth) | (ca_df > pth)]) / len(ca_df)
+#                 row[f'{conn_Ca.split(".")[1]}_Ca_ltp'] = len(ca_df[(ca_df > pth)]) / len(ca_df)
+#                 row[f'{conn_Ca.split(".")[1]}_Ca_ltd'] = len(ca_df[(ca_df > dth) & (ca_df < pth)]) / len(ca_df)
                 
-                row[f'RAW_{conn_Ca.split(".")[1]}_Ca_active'] = len(ca_df[(ca_df > dth) & (ca_df < pth) | (ca_df > pth)])
+#                 row[f'RAW_{conn_Ca.split(".")[1]}_Ca_active'] = len(ca_df[(ca_df > dth) & (ca_df < pth) | (ca_df > pth)])
                 row[f'RAW_{conn_Ca.split(".")[1]}_Ca_ltp'] = len(ca_df[(ca_df > pth)])
                 row[f'RAW_{conn_Ca.split(".")[1]}_Ca_ltd'] = len(ca_df[(ca_df > dth) & (ca_df < pth)])
             

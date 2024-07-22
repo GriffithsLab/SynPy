@@ -10,7 +10,7 @@ import shutil
 conf_dir = os.path.join(os.getcwd(), 'confs/dosage/')
 output_dir = os.path.join(os.getcwd(), 'outputs/dosage/')
 
-pkl = "test_scaled_amp_105_limit_with_gnmda.pkl"
+pkl = "scaled_amp_105_limit_with_gnmda.pkl"
 
 pulse_dose_range = {'start' : 600,
                     'stop' : 600,
@@ -19,7 +19,7 @@ pulse_dose_range = {'start' : 600,
 
 
 
-purge_dir = False
+purge_dir = True
 purge_dict = True
 
 
@@ -32,25 +32,17 @@ def check_and_create_pkl(pkl_filename):
         with open(pkl_filename, 'wb') as file:
             pickle.dump({}, file)
 
-# Check if the pickle file exists; if not, create it
+
+
+
+
 check_and_create_pkl(pkl)
-
 if purge_dict:
-    with open(pkl, 'rb') as file:
-        xyz_gain_dict = pickle.load(file)
-    
-    xyz_gain_dict = {}
-    
-    with open(pkl, 'wb') as file:
-        pickle.dump(xyz_gain_dict, file)
-
-# Check for if the pickle file exists
-try: # Try to open the existing pickle file
-    with open(pkl, 'rb') as file:
-        pickle.load(file)
-except FileNotFoundError: # If the file doesn't exist, create a new empty dictionary
     with open(pkl, 'wb') as file:
         pickle.dump({}, file)
+with open(pkl, 'rb') as file:
+    pickle.load(file)
+
         
 
 
@@ -61,16 +53,6 @@ for dose in range(pulse_dose_range['start'],
     grid_dir_name = f'bursts_oscillation_{dose}'
     new_conf_dir = os.path.join(conf_dir, grid_dir_name)
     new_output_dir = os.path.join(output_dir, grid_dir_name)
-
-    if purge_dir:
-        if os.path.exists(new_conf_dir):
-            try:
-                shutil.rmtree(new_conf_dir)
-            except: pass
-        if os.path.exists(new_output_dir):
-            try:
-                shutil.rmtree(new_output_dir)
-            except: pass
 
     # Run 
     params = { # Replaces each dictionary key with the corresponding value in the .conf
@@ -85,6 +67,17 @@ for dose in range(pulse_dose_range['start'],
     expected_file_count = len(sp.valid_iTBS_protocols())
     
     def submit_jobs():
+        
+        if purge_dir:
+            if os.path.exists(new_conf_dir):
+                try:
+                    shutil.rmtree(new_conf_dir)
+                except: pass
+            if os.path.exists(new_output_dir):
+                try:
+                    shutil.rmtree(new_output_dir)
+                except: pass
+                
 
         # Make the confs and submit them for batch jobs
         num_submitted_jobs = sp.dot_conf('eirs-tms-custom.conf').grid_outputs(perm_dict, 
