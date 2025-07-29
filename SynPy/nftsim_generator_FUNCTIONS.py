@@ -29,21 +29,65 @@ def protocol_params(string):
 
     return parameters
 
-def tbs_pulse_amp(base_amp, pulses_per_burst, inter_burst_freq, amp_scale_limit = None):
-    
-    conventional_stim_intensity = tbs_train_dose(pulses_per_burst = 3, 
-                                                 inter_burst_freq = 5)
-                                               
-                
-    protocol_stim_intensity = tbs_train_dose(pulses_per_burst = pulses_per_burst, 
-                                            inter_burst_freq = inter_burst_freq)
 
-    scaled_protocol_amplitude = base_amp * (conventional_stim_intensity / protocol_stim_intensity)
+def tbs_pulse_amp(base_amp, pulses_per_burst, inter_burst_freq, amp_scale_factor=None, amp_scale_ceiling=None):
+    """
+    Calculate scaled pulse amplitude for TBS protocols.
     
-    if amp_scale_limit:
-        scaled_protocol_amplitude = min(scaled_protocol_amplitude, base_amp * amp_scale_limit)
+    Args:
+        base_amp: Base amplitude value
+        pulses_per_burst: Number of pulses per burst
+        inter_burst_freq: Frequency between bursts (Hz)
+        amp_scale_factor: Optional factor to control scaling magnitude (0-1)
+                         Lower values reduce the scaling effect
+                         If None, full scaling is applied (equivalent to 1.0)
+        amp_scale_ceiling: Maximum allowed amplitude multiplier
+    
+    Returns:
+        Scaled amplitude value rounded to 2 decimal places
+    """
+    # Define the conventional iTBS parameters
+    conventional_stim_intensity = tbs_train_dose(pulses_per_burst=3, 
+                                                inter_burst_freq=5)
+                
+    # Calculate intensity for requested protocol
+    protocol_stim_intensity = tbs_train_dose(pulses_per_burst=pulses_per_burst, 
+                                           inter_burst_freq=inter_burst_freq)
+    
+    # Calculate the raw scaling ratio
+    scaling_ratio = conventional_stim_intensity / protocol_stim_intensity
+    
+    # Apply scaling factor to moderate the adjustment if provided
+    if amp_scale_factor is not None:
+        adjusted_scaling_ratio = 1.0 + (scaling_ratio - 1.0) * amp_scale_factor
+    else:
+        adjusted_scaling_ratio = scaling_ratio
+    
+    # Apply the adjusted scaling ratio
+    scaled_protocol_amplitude = base_amp * adjusted_scaling_ratio
+    
+    # Apply ceiling if provided
+    if amp_scale_ceiling is not None: # was 2
+        scaled_protocol_amplitude = min(scaled_protocol_amplitude, base_amp * amp_scale_ceiling)
     
     return format(scaled_protocol_amplitude, '.2f')
+
+
+# def tbs_pulse_amp(base_amp, pulses_per_burst, inter_burst_freq, amp_scale_factor = , amp_scale_ceiling = None): # amp_scale_limit = 2
+    
+#     conventional_stim_intensity = tbs_train_dose(pulses_per_burst = 3, 
+#                                                  inter_burst_freq = 5)
+                                               
+                
+#     protocol_stim_intensity = tbs_train_dose(pulses_per_burst = pulses_per_burst, 
+#                                             inter_burst_freq = inter_burst_freq)
+
+#     scaled_protocol_amplitude = base_amp * (conventional_stim_intensity / protocol_stim_intensity)
+    
+#     if amp_scale_ceiling:
+#         scaled_protocol_amplitude = min(scaled_protocol_amplitude, base_amp * amp_scale_ceiling)
+    
+#     return format(scaled_protocol_amplitude, '.2f')
 
 def tbs_train_dose(pulses_per_burst, inter_burst_freq, on_time = 2, off_time = 8):
     return tbs_time_pulse(stim_length = on_time + off_time, 

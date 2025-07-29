@@ -57,7 +57,7 @@ class dot_conf:
 
 
     def gen_confs(self, perm_dict, new_conf_dir, params = {}, 
-                  dynamic_dose = None,
+                  fixed_dose = None,
                   dynamic_amp = None,
                   filtered_perms = True, 
                   write_confs = True, 
@@ -95,8 +95,8 @@ class dot_conf:
             # update the new_conf_text with each param in the unique permuatation item
             [update_param(keywords[p_idx], format(param, '.2f'), new_conf_text, verbose) for p_idx, param in enumerate(perm)]
             ### Adjusts stim length based on desired number of pulses ###
-            if dynamic_dose:
-                stim_len = tbs_pulse_time(dynamic_dose, 
+            if fixed_dose:
+                stim_len = tbs_pulse_time(fixed_dose, 
                                           pulses_per_burst = float(param_value('Bursts', new_conf_text)), 
                                           inter_burst_freq = float(param_value('Oscillation Frequency', new_conf_text)))
                 update_param('Duration', format(stim_len, '.2f'), new_conf_text, verbose)
@@ -107,10 +107,11 @@ class dot_conf:
                 update_param('Time', format(sim_len, '.2f'), new_conf_text, verbose)
                 
             if dynamic_amp:
-                update_param('Amplitude', tbs_pulse_amp(base_amp = dynamic_amp, 
+                update_param('Amplitude', tbs_pulse_amp(base_amp = dynamic_amp['standard_amp'], 
                                                         pulses_per_burst = float(param_value('Bursts', new_conf_text)), 
                                                         inter_burst_freq = float(param_value('Oscillation Frequency', new_conf_text)),
-                                                        amp_scale_limit = 2), 
+                                                        amp_scale_factor=dynamic_amp['scaling_factor'],
+                                                        amp_scale_ceiling = 2), 
                              new_conf_text, verbose)
                 
             #############################################################
@@ -142,7 +143,7 @@ class dot_conf:
     
     def grid_outputs(self, perm_dict, new_conf_dir, new_output_dir, params = {}, 
                      
-                     dynamic_dose = None,
+                     fixed_dose = None,
                      dynamic_amp = None,
                      filtered_perms = True,
                      batch = True,
@@ -169,7 +170,7 @@ class dot_conf:
         grid_points = self.gen_confs(perm_dict, 
                                      new_conf_dir, 
                                      params, 
-                                     dynamic_dose,
+                                     fixed_dose,
                                      dynamic_amp,
                                      filtered_perms, 
                                      write_confs = True, 

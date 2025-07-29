@@ -12,7 +12,10 @@ def nftsim_setup(gcc_version = '9.4.0'):
                 print(e)
             else: # Otherwise, try 
                 os.system('make')
-                
+
+            with open('utils/nftsim.py', 'w') as f: # patch the depreceated 'rU' in NFTsim
+                f.write(code.replace("'rU'", "'r'")
+        
             os.chdir('../')
         
         elif create_nftsim == 'n':
